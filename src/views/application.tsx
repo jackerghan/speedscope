@@ -496,7 +496,21 @@ export class Application extends StatelessComponent<ApplicationProps> {
     })
   }
 
+  private onWindowMessage = (ev: MessageEvent) => {
+    const data = ev.data
+    if (data.msg == 'Load') {
+      this.loadProfile(async () => {
+        const profiles = await (await importModule).importProfileGroupFromText(
+          data.name,
+          data.contents,
+        )
+        return profiles
+      })
+    }
+  }
+
   componentDidMount() {
+    window.addEventListener('message', this.onWindowMessage)
     window.addEventListener('keydown', this.onWindowKeyDown)
     window.addEventListener('keypress', this.onWindowKeyPress)
     document.addEventListener('paste', this.onDocumentPaste)
@@ -504,6 +518,7 @@ export class Application extends StatelessComponent<ApplicationProps> {
   }
 
   componentWillUnmount() {
+    window.removeEventListener('message', this.onWindowMessage)
     window.removeEventListener('keydown', this.onWindowKeyDown)
     window.removeEventListener('keypress', this.onWindowKeyPress)
     document.removeEventListener('paste', this.onDocumentPaste)
