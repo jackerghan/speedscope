@@ -81,7 +81,7 @@ interface ProfileTableViewState {
   filter : string
 }
 
-export class ProfileTableView extends Component<ProfileTableViewProps, void> {
+export class ProfileTableView extends Component<ProfileTableViewProps, ProfileTableViewState> {
   state: ProfileTableViewState
 
   constructor() {
@@ -162,9 +162,9 @@ export class ProfileTableView extends Component<ProfileTableViewProps, void> {
 
   onInput = (ev: Event) => {
     ev.stopPropagation();
-    const newFilter = ev.target.value
+    const newFilter = (ev.target as HTMLInputElement).value
     if (newFilter != this.state.filter) {
-      this.setState((prevState, props) => {
+      this.setState((prevState: ProfileTableViewState, props: ProfileTableViewProps) => {
         return {filter: newFilter};
       });
     }
@@ -175,7 +175,7 @@ export class ProfileTableView extends Component<ProfileTableViewProps, void> {
 
     const frameList: Frame[] = []
 
-    let rx;
+    let rx : RegExp;
     try {
       rx = new RegExp(this.state.filter);
     } catch (e) {
