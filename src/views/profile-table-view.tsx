@@ -77,7 +77,18 @@ interface ProfileTableViewProps {
   setSortMethod: (sortMethod: SortMethod) => void
 }
 
+interface ProfileTableViewState {
+  filter : string
+}
+
 export class ProfileTableView extends Component<ProfileTableViewProps, void> {
+  state: ProfileTableViewState
+
+  constructor() {
+    super();
+    this.state = { filter: "" }
+  }
+
   renderRow(frame: Frame, index: number) {
     const {profile, selectedFrame} = this.props
 
@@ -149,12 +160,35 @@ export class ProfileTableView extends Component<ProfileTableViewProps, void> {
     }
   }
 
+  onInput = (ev: Event) => {
+    ev.stopPropagation();
+    const newFilter = ev.target.value
+    if (newFilter != this.state.filter) {
+      this.setState((prevState, props) => {
+        return {filter: newFilter};
+      });
+    }
+  }
+
   private getFrameList = (): Frame[] => {
     const {profile, sortMethod} = this.props
 
     const frameList: Frame[] = []
 
-    profile.forEachFrame(f => frameList.push(f))
+    let rx;
+    try {
+      rx = new RegExp(this.state.filter);
+    } catch (e) {
+    }
+
+    profile.forEachFrame(f => {
+      if (rx) {
+        if (f.name.search(rx) < 0) {
+          return;
+        }
+      }
+      frameList.push(f);
+    })
 
     // TODO(jlfwong): This is pretty inefficient to do this on every render, but doesn't
     // seem to be a bottleneck, so we'll leave it alone.
@@ -244,7 +278,14 @@ export class ProfileTableView extends Component<ProfileTableViewProps, void> {
                     sortMethod.field === SortField.SYMBOL_NAME ? sortMethod.direction : null
                   }
                 />
-                Symbol Name
+                Symbol Name [Filter:
+                <input
+                  type="text"
+                  onInput={ev => this.onInput(ev)}
+                  onClick={ev => ev.stopPropagation()}
+                  onKeyPress={ev => ev.stopPropagation()}
+                  onKeyDown={ev => ev.stopPropagation()}
+                />]
               </th>
             </tr>
           </thead>
