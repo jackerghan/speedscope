@@ -10,7 +10,7 @@ type Stats = {
 type FileEntry = {
   key: number;
   name: string;
-  managers: string[];
+  managers: string[][];
   stats: Stats;
   children: Map<string, FileEntry>;
   parent: FileEntry | null;
@@ -43,12 +43,19 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
       console.warn('Bad line: ', lineIndex, line);
       continue;
     }
-    const managers = fields[0].split('/');
+    let managers = fields[0].split('/');
+    const vpFound = managers.indexOf('ritandon');
+    if (vpFound >= 0) {
+      managers = managers.slice(vpFound + 1);
+    }
     const repo = fields[1];
     const editCount = Number(fields[2]);
     const ploc = Number(fields[3]);
-    const path = `[${repo}]/${fields[4]}`;
+    const path = fields[4].trimEnd();
     const pathParts = path.split('/');
+    if (pathParts[0] != repo) {
+      pathParts.unshift(repo);
+    }
     const stats = {
       editCount,
       ploc,
@@ -59,19 +66,15 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     for (const part of pathParts) {
       let fileEntry = parent.children.get(part);
       if (!fileEntry) {
-        fileEntry = { key: nextKey++, name: part, managers, stats: {...stats}, children: new Map(), parent };
+        fileEntry = { key: nextKey++, name: part, managers:[], stats: {...stats}, children: new Map(), parent };
         parent.children.set(part, fileEntry);
       } else {
-        // Tag the parent directories with the managers.
-        for (const manager of managers) {
-          if (fileEntry.managers.indexOf(manager) === -1) {
-            fileEntry.managers.push(manager);
-          }
-        }
         for (const stat of typedKeys(stats)) {
           fileEntry.stats[stat] = stats[stat] + fileEntry.stats[stat] ?? 0;
         }
       }
+      // Make sure managers get added to a new file entry or parent directory.
+      addManagers(fileEntry.managers, managers);
       parent = fileEntry;
     }
   }
@@ -97,7 +100,7 @@ function addToProfile(context: BuildContext, fileEntry: FileEntry): void {
   const frameInfo: FrameInfo = {
     key: fileEntry.key,
     name: fileEntry.name,
-    file: fileEntry.managers.join(':'),
+    file: getManagers(fileEntry.managers),
     line: fileEntry.stats.ploc,
   };
   context.profile.enterFrame(frameInfo, context.runningWeight);
@@ -110,6 +113,34 @@ function addToProfile(context: BuildContext, fileEntry: FileEntry): void {
     context.runningWeight += fileEntry.stats.weight;
   }
   context.profile.leaveFrame(frameInfo, context.runningWeight);
+}
+
+function addManagers(addTo: string[][], managers: string[]) {
+  for (let i = 0; i < managers.length; i++) {
+    let addToLevel: string[];
+    if (addTo.length < i + 1) {
+      addToLevel = [];
+      addTo.push(addToLevel);
+    } else {
+      addToLevel = addTo[i];
+    }
+    const manager = managers[i];
+    if (addToLevel.indexOf(manager) < 0) {
+      addToLevel.push(manager);
+    }
+  }
+}
+
+function getManagers(managers: string[][]): string {
+  const allLevels = [];
+  for (const level of managers) {
+    if (level.length == 1) {
+      allLevels.push(level[0]);
+    } else {
+      allLevels.push('[' + level.sort().join(',') + ']');
+    }
+  }
+  return allLevels.join('::');
 }
 
 function nonLocaleCompare(a: string, b: string): number {
