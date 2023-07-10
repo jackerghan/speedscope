@@ -1,14 +1,13 @@
-import { h } from 'preact'
-import { rawListeners } from 'process';
-
 import { ProfileGroup, FrameInfo, CallTreeProfileBuilder } from '../lib/profile'
 import { TextFileContent } from './utils'
 
-type Stats = {
+import { h } from 'preact'
+
+export type Stats = {
   [id: string]: number;
 };
 
-type FileEntry = {
+export type FileEntry = {
   key: number;
   name: string;
   managers: string[][];
@@ -33,6 +32,9 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     parent: null,
     children: new Map(),
   };
+  const filters = getActiveFilters();
+  const managerFilter = buildTextFilter(filters.managersInclude, filters.managersExclude);
+  const pathFilter = buildTextFilter(filters.pathInclude, filters.pathExclude);
   let lineIndex = 0;
   for (const line of contents.splitLines()) {
     // Skip the header line.
@@ -44,19 +46,27 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
       console.warn('Bad line: ', lineIndex, line);
       continue;
     }
-    let managers = fields[0].split('/');
-    const vpFound = managers.indexOf('ritandon');
+    let managersRaw = fields[0];
+    const vpFound = managersRaw.indexOf('ritandon');
     if (vpFound >= 0) {
-      managers = managers.slice(vpFound + 1);
+      managersRaw = managersRaw.substring(vpFound);
     }
+    if (!matchTextFilter(managersRaw, managerFilter)) {
+      continue;
+    }
+    const managers = managersRaw.split('/');
     const repo = fields[1];
     const editCount = Number(fields[2]);
     const ploc = Number(fields[3]);
-    const path = fields[4].trimEnd();
-    const pathParts = path.split('/');
-    if (pathParts[0] != repo) {
-      pathParts.unshift(repo);
+    let path = fields[4].trimEnd();
+    const repoPrefix = repo + '/';
+    if (!path.startsWith(repoPrefix)) {
+      path = repoPrefix + path;
     }
+    if (!matchTextFilter(path, pathFilter)) {
+      continue;
+    }
+    const pathParts = path.split('/');
     const stats = {
       editCount,
       ploc,
@@ -93,28 +103,23 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
   }
 }
 
-function typedKeys<T extends Object>(obj: T): Array<keyof T> {
+export function typedKeys<T extends Object>(obj: T): Array<keyof T> {
   return Object.keys(obj) as Array<keyof T>;
 }
 
-function renderTooltip(fileEntry: FileEntry): h.JSX.Element {
-  return renderDetails(fileEntry);
+export type RenderTarget = 'tooltip' | 'details';
+type Renderer = (fileEntry: FileEntry, target: RenderTarget) => h.JSX.Element;
+let rendererImpl: Renderer = () => <div></div>;
+export function setRendererImpl(impl: Renderer) {
+  rendererImpl = impl;
 }
 
 function renderDetails(fileEntry: FileEntry): h.JSX.Element {
-  const rows: h.JSX.Element[] = []
-  for (const statName of typedKeys(fileEntry.stats)) {
-    if (statName === 'weight') {
-      continue;
-    }
-    rows.push(<p><b>{statName + ':'}</b>{fileEntry.stats[statName]}</p>);
-  }
-  return (
-    <div>
-      <p>{getManagers(fileEntry.managers)}</p>
-      {rows}
-    </div>
-    );
+  return rendererImpl(fileEntry, 'details');
+}
+
+function renderTooltip(fileEntry: FileEntry): h.JSX.Element {
+  return rendererImpl(fileEntry, 'tooltip');
 }
 
 function addToProfile(context: BuildContext, fileEntry: FileEntry): void {
@@ -154,7 +159,7 @@ function addManagers(addTo: string[][], managers: string[]) {
   }
 }
 
-function getManagers(managers: string[][]): string {
+export function getManagers(managers: string[][]): string {
   const allLevels = [];
   for (const level of managers) {
     if (level.length == 1) {
@@ -166,6 +171,84 @@ function getManagers(managers: string[][]): string {
   return allLevels.join('::');
 }
 
+export function getPath(fileEntry: FileEntry): string {
+  const parts = [];
+  for (let current : FileEntry | null = fileEntry; current; current = current.parent) {
+    parts.push(current.name);
+  }
+  return parts.reverse().join('/');
+}
+
 function nonLocaleCompare(a: string, b: string): number {
   return (a < b ? -1 : (a > b ? 1 : 0));
+}
+
+export type Filters = {
+  managersInclude?: string;
+  managersExclude?: string;
+  pathInclude?: string;
+  pathExclude?: string;
+  tagsInclude?: string;
+  tagsExclude?: string;
+  taskSev?: boolean;
+  taskSla?: boolean;
+  taskPriUbn?: boolean;
+  taskPriHigh?: boolean;
+  taskPriMid?: boolean;
+  taskPriLow?: boolean;
+  taskPriWish?: boolean;
+}
+
+let activeFilters: Filters = {};
+
+export function getActiveFilters(): Filters {
+  return activeFilters;
+}
+
+export function setActiveFilters(filters: Filters) {
+  activeFilters = filters;
+}
+
+type TextFilter = {
+  includes: Array<string>;
+  excludes: Array<string>;
+};
+
+function inputToFilterArray(input: string | undefined) {
+  if (!input) {
+    return [];
+  }
+  const patterns = input.split(' ');
+  // Filter out zero length patterns
+  return patterns.filter((v) => v.length != 0).map((e) => e.toLocaleLowerCase());
+}
+
+function buildTextFilter(includesInput: string | undefined, excludesInput: string | undefined): TextFilter {
+  const includes = inputToFilterArray(includesInput);
+  const excludes = inputToFilterArray(excludesInput);
+  return {excludes, includes};
+}
+
+function matchTextFilter(key: string, filters: TextFilter) {
+  const keylc = key.toLowerCase();
+  // If there are includes, key must match at least one.
+  if (filters.includes.length) {
+    let matched = false;
+    for (const pattern of filters.includes) {
+      if (keylc.includes(pattern)) {
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      return false;
+    }
+  }
+  // Check for excludes.
+  for (const pattern of filters.excludes) {
+    if (keylc.includes(pattern)) {
+      return false;
+    }
+  }
+  return true;
 }

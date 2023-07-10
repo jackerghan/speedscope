@@ -12,10 +12,12 @@ import { viewModeAtom } from '../app-state'
 import { ProfileGroupState } from '../app-state/profile-group'
 import { colorSchemeAtom } from '../app-state/color-scheme'
 import { useAtom } from '../lib/atom'
+import { FilterView } from './worktrack-views'
 
 interface ToolbarProps extends ApplicationProps {
   browseForFile(): void
   saveFile(): void
+  reloadLastProfile(): void
 }
 
 function useSetViewMode(setViewMode: (viewMode: ViewMode) => void, viewMode: ViewMode) {
@@ -23,42 +25,46 @@ function useSetViewMode(setViewMode: (viewMode: ViewMode) => void, viewMode: Vie
 }
 
 function ToolbarLeftContent(props: ToolbarProps) {
+  const [filterViewActive, setFilterViewActive] = useState(false);
   const style = getStyle(useTheme())
   const setChronoFlameChart = useSetViewMode(viewModeAtom.set, ViewMode.CHRONO_FLAME_CHART)
   const setLeftHeavyFlameGraph = useSetViewMode(viewModeAtom.set, ViewMode.LEFT_HEAVY_FLAME_GRAPH)
-  const setSandwichView = useSetViewMode(viewModeAtom.set, ViewMode.SANDWICH_VIEW)
 
   if (!props.activeProfileState) return null
 
   return (
-    <div className={css(style.toolbarLeft)}>
-      <div
-        className={css(
-          style.toolbarTab,
-          props.viewMode === ViewMode.CHRONO_FLAME_CHART && style.toolbarTabActive,
-        )}
-        onClick={setChronoFlameChart}
-      >
-        <span className={css(style.emoji)}>🕰</span>Path Order
+    <div>
+      <div className={css(style.toolbarLeft)}>
+        <div
+          className={css(
+            style.toolbarTab,
+            props.viewMode === ViewMode.CHRONO_FLAME_CHART && style.toolbarTabActive,
+          )}
+          onClick={setChronoFlameChart}
+        >
+          <span className={css(style.emoji)}>🕰</span>Path Order
+        </div>
+        <div
+          className={css(
+            style.toolbarTab,
+            props.viewMode === ViewMode.LEFT_HEAVY_FLAME_GRAPH && style.toolbarTabActive,
+          )}
+          onClick={setLeftHeavyFlameGraph}
+        >
+          <span className={css(style.emoji)}>⬅️</span>Left Heavy
+        </div>
+        <div
+          className={css(style.toolbarTab)}
+          onClick={() => setFilterViewActive(!filterViewActive)}
+        >
+          <span className={css(style.emoji)}>🎹</span>Filter
+        </div>
       </div>
-      <div
-        className={css(
-          style.toolbarTab,
-          props.viewMode === ViewMode.LEFT_HEAVY_FLAME_GRAPH && style.toolbarTabActive,
-        )}
-        onClick={setLeftHeavyFlameGraph}
-      >
-        <span className={css(style.emoji)}>⬅️</span>Left Heavy
-      </div>
-      {/* <div
-        className={css(
-          style.toolbarTab,
-          props.viewMode === ViewMode.SANDWICH_VIEW && style.toolbarTabActive,
-        )}
-        onClick={setSandwichView}
-      >
-        <span className={css(style.emoji)}>🥪</span>Sandwich
-      </div> */}
+      {!filterViewActive ? undefined : (
+        <FilterView
+          reloadLastProfile={props.reloadLastProfile}
+          close={() => setFilterViewActive(false)} />
+      )}
     </div>
   )
 }

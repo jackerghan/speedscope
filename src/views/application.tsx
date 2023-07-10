@@ -223,10 +223,17 @@ export class Application extends StatelessComponent<ApplicationProps> {
     return getStyle(this.props.theme)
   }
 
+  private reloadLastProfile = () => {
+    if (this.props.profileGroup?.sourceFile) {
+      this.loadFromFile(this.props.profileGroup.sourceFile)
+    }
+  }
+
   loadFromFile(file: File) {
     this.loadProfile(async () => {
       const profiles = await importProfilesFromFile(file)
       if (profiles) {
+        profiles.sourceFile = file
         for (let profile of profiles.profiles) {
           if (!profile.getName()) {
             profile.setName(file.name)
@@ -591,6 +598,7 @@ export class Application extends StatelessComponent<ApplicationProps> {
         <Toolbar
           saveFile={this.saveFile}
           browseForFile={this.browseForFile}
+          reloadLastProfile={this.reloadLastProfile}
           {...(this.props as ApplicationProps)}
         />
         <div className={css(style.contentContainer)}>{this.renderContent()}</div>

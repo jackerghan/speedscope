@@ -121,6 +121,7 @@ export interface ProfileGroup {
   name: string
   indexToView: number
   profiles: Profile[]
+  sourceFile?: File
 }
 
 export class Profile {
