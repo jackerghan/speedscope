@@ -54,6 +54,7 @@ export class FlamechartWrapper extends StatelessComponent<FlamechartViewProps> {
             {frame.file}:{frame.line}
           </div>
         ) : undefined}
+        {frame.data ? frame.data.renderTooltip() : undefined}
       </Hovertip>
     )
   }

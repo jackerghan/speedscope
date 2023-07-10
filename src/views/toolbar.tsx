@@ -1,17 +1,17 @@
-import {ApplicationProps} from './application'
-import {h, JSX, Fragment} from 'preact'
-import {useCallback, useState, useEffect} from 'preact/hooks'
-import {StyleSheet, css} from 'aphrodite'
-import {Sizes, FontFamily, FontSize, Duration} from './style'
-import {ProfileSelect} from './profile-select'
-import {Profile} from '../lib/profile'
-import {objectsHaveShallowEquality} from '../lib/utils'
-import {colorSchemeToString, useTheme, withTheme} from './themes/theme'
-import {ViewMode} from '../lib/view-mode'
-import {viewModeAtom} from '../app-state'
-import {ProfileGroupState} from '../app-state/profile-group'
-import {colorSchemeAtom} from '../app-state/color-scheme'
-import {useAtom} from '../lib/atom'
+import { ApplicationProps } from './application'
+import { h, JSX, Fragment } from 'preact'
+import { useCallback, useState, useEffect } from 'preact/hooks'
+import { StyleSheet, css } from 'aphrodite'
+import { Sizes, FontFamily, FontSize, Duration } from './style'
+import { ProfileSelect } from './profile-select'
+import { Profile } from '../lib/profile'
+import { objectsHaveShallowEquality } from '../lib/utils'
+import { colorSchemeToString, useTheme, withTheme } from './themes/theme'
+import { ViewMode } from '../lib/view-mode'
+import { viewModeAtom } from '../app-state'
+import { ProfileGroupState } from '../app-state/profile-group'
+import { colorSchemeAtom } from '../app-state/color-scheme'
+import { useAtom } from '../lib/atom'
 
 interface ToolbarProps extends ApplicationProps {
   browseForFile(): void
@@ -39,7 +39,7 @@ function ToolbarLeftContent(props: ToolbarProps) {
         )}
         onClick={setChronoFlameChart}
       >
-        <span className={css(style.emoji)}>🕰</span>Time Order
+        <span className={css(style.emoji)}>🕰</span>Path Order
       </div>
       <div
         className={css(
@@ -50,7 +50,7 @@ function ToolbarLeftContent(props: ToolbarProps) {
       >
         <span className={css(style.emoji)}>⬅️</span>Left Heavy
       </div>
-      <div
+      {/* <div
         className={css(
           style.toolbarTab,
           props.viewMode === ViewMode.SANDWICH_VIEW && style.toolbarTabActive,
@@ -58,7 +58,7 @@ function ToolbarLeftContent(props: ToolbarProps) {
         onClick={setSandwichView}
       >
         <span className={css(style.emoji)}>🥪</span>Sandwich
-      </div>
+      </div> */}
     </div>
   )
 }
@@ -90,7 +90,7 @@ const getCachedProfileList = (() => {
 function ToolbarCenterContent(props: ToolbarProps): JSX.Element {
   const style = getStyle(useTheme())
 
-  const {activeProfileState, profileGroup} = props
+  const { activeProfileState, profileGroup } = props
   const profiles = getCachedProfileList(profileGroup)
   const [profileSelectShown, setProfileSelectShown] = useState(false)
 
@@ -140,7 +140,7 @@ function ToolbarCenterContent(props: ToolbarProps): JSX.Element {
               ({activeProfileState.index + 1}/{profileGroup.profiles.length})
             </span>
           </span>
-          <div style={{display: profileSelectShown ? 'block' : 'none'}}>
+          <div style={{ display: profileSelectShown ? 'block' : 'none' }}>
             <ProfileSelect
               setProfileIndexToView={props.setProfileIndexToView}
               indexToView={profileGroup.indexToView}

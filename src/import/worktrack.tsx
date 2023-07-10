@@ -1,7 +1,8 @@
-// https://github.com/tmm1/stackprof
+import { h } from 'preact'
+import { rawListeners } from 'process';
 
 import { ProfileGroup, FrameInfo, CallTreeProfileBuilder } from '../lib/profile'
-import {TextFileContent} from './utils'
+import { TextFileContent } from './utils'
 
 type Stats = {
   [id: string]: number;
@@ -59,14 +60,14 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     const stats = {
       editCount,
       ploc,
-      weight: Math.min(5, editCount),
+      weight: Math.min(10, editCount),
     };
     totalWeight += stats.weight;
     let parent = root;
     for (const part of pathParts) {
       let fileEntry = parent.children.get(part);
       if (!fileEntry) {
-        fileEntry = { key: nextKey++, name: part, managers:[], stats: {...stats}, children: new Map(), parent };
+        fileEntry = { key: nextKey++, name: part, managers: [], stats: { ...stats }, children: new Map(), parent };
         parent.children.set(part, fileEntry);
       } else {
         for (const stat of typedKeys(stats)) {
@@ -96,12 +97,34 @@ function typedKeys<T extends Object>(obj: T): Array<keyof T> {
   return Object.keys(obj) as Array<keyof T>;
 }
 
+function renderTooltip(fileEntry: FileEntry): h.JSX.Element {
+  return renderDetails(fileEntry);
+}
+
+function renderDetails(fileEntry: FileEntry): h.JSX.Element {
+  const rows: h.JSX.Element[] = []
+  for (const statName of typedKeys(fileEntry.stats)) {
+    if (statName === 'weight') {
+      continue;
+    }
+    rows.push(<p><b>{statName + ':'}</b>{fileEntry.stats[statName]}</p>);
+  }
+  return (
+    <div>
+      <p>{getManagers(fileEntry.managers)}</p>
+      {rows}
+    </div>
+    );
+}
+
 function addToProfile(context: BuildContext, fileEntry: FileEntry): void {
   const frameInfo: FrameInfo = {
     key: fileEntry.key,
     name: fileEntry.name,
-    file: getManagers(fileEntry.managers),
-    line: fileEntry.stats.ploc,
+    data: {
+      renderTooltip: () => renderTooltip(fileEntry),
+      renderDetails: () => renderDetails(fileEntry),
+    },
   };
   context.profile.enterFrame(frameInfo, context.runningWeight);
   if (fileEntry.children.size) {

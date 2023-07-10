@@ -21,7 +21,16 @@ export const getFlamechartStyle = withTheme(theme =>
     panZoomView: {
       flex: 1,
     },
-
+    detailViewBlock: {
+      display: 'block',
+      height: Sizes.DETAIL_VIEW_HEIGHT,
+      borderTop: `${Sizes.SEPARATOR_HEIGHT}px solid ${theme.fgSecondaryColor}`,
+      fontSize: FontSize.LABEL,
+      position: 'absolute',
+      background: theme.bgPrimaryColor,
+      width: '100vw',
+      bottom: 0,
+    },
     detailView: {
       display: 'grid',
       height: Sizes.DETAIL_VIEW_HEIGHT,
