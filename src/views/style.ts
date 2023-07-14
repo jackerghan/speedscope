@@ -21,6 +21,12 @@ export enum Sizes {
   TOOLBAR_TAB_HEIGHT = TOOLBAR_HEIGHT - SEPARATOR_HEIGHT,
 }
 
+export function isWindows() {
+  return navigator.platform.indexOf('Win') > -1;
+}
+
+export const SCROLL_FACTOR = isWindows() ? 1000 : 100;
+
 export enum Duration {
   HOVER_CHANGE = '0.07s',
 }

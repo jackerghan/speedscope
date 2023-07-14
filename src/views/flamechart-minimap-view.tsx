@@ -4,7 +4,7 @@ import {Flamechart} from '../lib/flamechart'
 import {Rect, Vec2, AffineTransform, clamp} from '../lib/math'
 import {FlamechartRenderer} from '../gl/flamechart-renderer'
 import {getFlamechartStyle} from './flamechart-style'
-import {FontFamily, FontSize, Sizes, commonStyle} from './style'
+import {FontFamily, FontSize, Sizes, commonStyle, SCROLL_FACTOR} from './style'
 import {CanvasContext} from '../gl/canvas-context'
 import {cachedMeasureTextWidth} from '../lib/text-utils'
 import {Color} from '../lib/color'
@@ -285,13 +285,13 @@ export class FlamechartMinimapView extends Component<FlamechartMinimapViewProps,
     const isZoom = ev.metaKey || ev.ctrlKey
 
     if (isZoom && this.interactionLock !== 'pan') {
-      let multiplier = 1 + ev.deltaY / 100
+      let multiplier = 1 + ev.deltaY / SCROLL_FACTOR
 
       // On Chrome & Firefox, pinch-to-zoom maps to
       // WheelEvent + Ctrl Key. We'll accelerate it in
       // this case, since it feels a bit sluggish otherwise.
       if (ev.ctrlKey) {
-        multiplier = 1 + ev.deltaY / 40
+        // multiplier = 1 + ev.deltaY / 40
       }
 
       multiplier = clamp(multiplier, 0.1, 10.0)

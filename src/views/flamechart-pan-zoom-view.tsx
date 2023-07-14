@@ -3,7 +3,7 @@ import {CallTreeNode} from '../lib/profile'
 import {Flamechart, FlamechartFrame} from '../lib/flamechart'
 import {CanvasContext} from '../gl/canvas-context'
 import {FlamechartRenderer} from '../gl/flamechart-renderer'
-import {Sizes, FontSize, FontFamily, commonStyle} from './style'
+import {Sizes, FontSize, FontFamily, commonStyle, SCROLL_FACTOR} from './style'
 import {
   cachedMeasureTextWidth,
   ELLIPSIS,
@@ -697,13 +697,13 @@ export class FlamechartPanZoomView extends Component<FlamechartPanZoomViewProps,
     }
 
     if (isZoom && this.interactionLock !== 'pan') {
-      let multiplier = 1 + deltaY / 100
+      let multiplier = 1 + deltaY / SCROLL_FACTOR
 
       // On Chrome & Firefox, pinch-to-zoom maps to
       // WheelEvent + Ctrl Key. We'll accelerate it in
       // this case, since it feels a bit sluggish otherwise.
       if (ev.ctrlKey) {
-        multiplier = 1 + deltaY / 40
+        // multiplier = 1 + deltaY / 40
       }
 
       multiplier = clamp(multiplier, 0.1, 10.0)
