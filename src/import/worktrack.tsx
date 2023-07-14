@@ -68,21 +68,22 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     }
     const pathParts = path.split('/');
     const stats = {
+      fileCount: 1,
       editCount,
       ploc,
       weight: Math.min(10, editCount),
     };
     totalWeight += stats.weight;
     let parent = root;
+    accumulateStats(root, stats);
+    addManagers(root.managers, managers);
     for (const part of pathParts) {
       let fileEntry = parent.children.get(part);
       if (!fileEntry) {
         fileEntry = { key: nextKey++, name: part, managers: [], stats: { ...stats }, children: new Map(), parent };
         parent.children.set(part, fileEntry);
       } else {
-        for (const stat of typedKeys(stats)) {
-          fileEntry.stats[stat] = stats[stat] + fileEntry.stats[stat] ?? 0;
-        }
+        accumulateStats(fileEntry, stats);
       }
       // Make sure managers get added to a new file entry or parent directory.
       addManagers(fileEntry.managers, managers);
@@ -141,6 +142,12 @@ function addToProfile(context: BuildContext, fileEntry: FileEntry): void {
     context.runningWeight += fileEntry.stats.weight;
   }
   context.profile.leaveFrame(frameInfo, context.runningWeight);
+}
+
+function accumulateStats(fileEntry: FileEntry, stats: Stats) {
+  for (const stat of typedKeys(stats)) {
+    fileEntry.stats[stat] = stats[stat] + (fileEntry.stats[stat] ?? 0);
+  }
 }
 
 function addManagers(addTo: string[][], managers: string[]) {
