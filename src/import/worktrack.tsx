@@ -3,17 +3,72 @@ import { TextFileContent } from './utils'
 
 import { h } from 'preact'
 
+const maxDiffPeek = 5;
+
 export type Stats = {
   [id: string]: number;
 };
+
+export type Datas = {
+  [id: string]: number;
+};
+
+export type DiffEntry = {
+  id: number;
+  fbid: string;
+  dateClosed: number;
+  lineCount: number;
+  substantialLineCount: number;
+  author: string;
+  clocDelta: number;
+  llocDelta: number;
+  plocDelta: number;
+  isCodeMod: boolean;
+  isBot: boolean;
+  title: string;
+  fileCount: number;
+  extensions: string[];
+  taskIds: number[];
+  tasks: TaskEntry[];
+}
+
+export type TaskEntry = {
+  id: number;
+  title: string;
+  priority: number;
+  taskType: number;
+  tags: Set<string>;
+}
+
+type ParsedFileEntry = {
+  managersRaw: string;
+  managers: string[];
+  pathRaw: string;
+  pathParts: string[];
+  diffs: DiffEntry[];
+  stats: Stats;
+  datas: Datas;
+}
+
+type FileWorkContent = {
+  diffs: Map<string, DiffEntry>;
+  tasks: Map<number, TaskEntry>;
+  files: ParsedFileEntry[];
+}
+
+interface FileWithWorkContent extends TextFileContent {
+  workContent?: FileWorkContent;
+}
 
 export type FileEntry = {
   key: number;
   name: string;
   managers: string[][];
   stats: Stats;
+  datas: Datas;
   children: Map<string, FileEntry>;
   parent: FileEntry | null;
+  diffs: DiffEntry[];
 }
 
 type BuildContext = {
@@ -21,7 +76,197 @@ type BuildContext = {
   runningWeight: number;
 }
 
+function parseWorkContent(contents: TextFileContent): FileWorkContent {
+  // If we have already parsed the work content, return that!
+  const fileWithWorkContent = contents as FileWithWorkContent;
+  if (fileWithWorkContent.workContent) {
+    return fileWithWorkContent.workContent;
+  }
+  let workContent: FileWorkContent = {
+    diffs: new Map<string, DiffEntry>(),
+    tasks: new Map<number, TaskEntry>(),
+    files: []
+  };
+  let lineIndex = 0;
+  let fieldCount = 0;
+  const lineIterator = contents.splitLines()[Symbol.iterator]();
+  // Parse the diff info.
+  fieldCount = 0;
+  for (let lineEntry = lineIterator.next(); !lineEntry.done; lineEntry = lineIterator.next()) {
+    const line = lineEntry.value;
+    lineIndex++;
+    // Skip the header line.
+    if (lineIndex == 1) {
+      continue;
+    }
+    // Break when we come to task info.
+    if (line.startsWith('task_number,title,priority')) {
+      break;
+    }
+    const fields = trimEnd(line).split(/,/);
+    if (fieldCount && fields.length != fieldCount) {
+      console.warn('Bad line: ', lineIndex, line);
+      continue;
+    }
+    fieldCount = 0;
+    const diffId = Number(fields[fieldCount++]);
+    const diffFbid = fields[fieldCount++];
+    const dateClosed = Number(fields[fieldCount++]);
+    const lineCount = Number(fields[fieldCount++]);
+    const substantialLineCount = Number(fields[fieldCount++]);
+    const author = fields[fieldCount++];
+    const clocDelta = Number(fields[fieldCount++]);
+    const llocDelta = Number(fields[fieldCount++]);
+    const plocDelta = Number(fields[fieldCount++]);
+    const isCodeMod = !!Number(fields[fieldCount++]);
+    const isBot = !!Number(fields[fieldCount++]);
+    const title = fields[fieldCount++];
+    const fileCount = Number(fields[fieldCount++]);
+    const extensions = fields[fieldCount++].split('/');
+    const taskIds = fields[fieldCount++].split('/').map((x: string) => Number(x)).filter((y: number) => y != 0);
+    const diff = {
+      id: diffId,
+      fbid: diffFbid,
+      dateClosed,
+      lineCount,
+      substantialLineCount,
+      author,
+      clocDelta,
+      llocDelta,
+      plocDelta,
+      isCodeMod,
+      isBot,
+      title,
+      fileCount,
+      extensions,
+      taskIds,
+      tasks: [],
+    };
+    workContent.diffs.set(diffFbid, diff);
+  }
+  // Parse the task info.
+  fieldCount = 0;
+  for (let lineEntry = lineIterator.next(); !lineEntry.done; lineEntry = lineIterator.next()) {
+    const line = lineEntry.value;
+    lineIndex++;
+    // Break when we come to file info.
+    if (line.startsWith('manager_chain,diff_fbids,')) {
+      break;
+    }
+    const fields = trimEnd(line).split(/,/);
+    if (fieldCount && fields.length != fieldCount) {
+      console.warn('Bad line: ', lineIndex, line);
+      continue;
+    }
+    fieldCount = 0;
+    const taskId = Number(fields[fieldCount++]);
+    const title = fields[fieldCount++];
+    const priority = Number(fields[fieldCount++]);
+    const taskType = Number(fields[fieldCount++]);
+    const tags = fields[fieldCount++].split(':::');
+    const task: TaskEntry = {
+      id: taskId,
+      title,
+      priority,
+      taskType,
+      tags,
+    };
+    workContent.tasks.set(taskId, task);
+  }
+  // Parse the file info.
+  fieldCount = 0;
+  for (let lineEntry = lineIterator.next(); !lineEntry.done; lineEntry = lineIterator.next()) {
+    const line = lineEntry.value;
+    lineIndex++;
+    const fields = trimEnd(line).split(/,/);
+    if (fieldCount && fields.length != fieldCount) {
+      console.warn('Bad line: ', lineIndex, line);
+      continue;
+    }
+    fieldCount = 0;
+    let managersRaw = fields[fieldCount++];
+    const vpFound = managersRaw.indexOf('ritandon');
+    if (vpFound >= 0) {
+      managersRaw = managersRaw.substring(vpFound);
+    }
+    const managers = managersRaw.split('/');
+    const diffFbids = fields[fieldCount++].split('/');
+    const repo = fields[fieldCount++];
+    let path = fields[fieldCount++];
+    const repoPrefix = repo + '/';
+    if (!path.startsWith(repoPrefix)) {
+      path = repoPrefix + path;
+    }
+    const diffs: DiffEntry[] = [];
+    const fileTags = new Set<string>();
+    for (const diffFbid of diffFbids) {
+      const diff = workContent.diffs.get(diffFbid);
+      if (diff) {
+        diffs.push(diff);
+        for (const task of diff.tasks) {
+          for (const tag of task.tags.keys()) {
+            fileTags.add(tag);
+          }
+        }
+      }
+    }
+    if (!diffs.length) {
+      // Warn if no diffs even if no filters and ...
+      console.warn(`${path} has no diffs with details ${diffFbids}`);
+      continue;
+    }
+    const pathParts = path.split('/');
+    const logicalComplexity = Number(fields[fieldCount++]);
+    const codeCoveragePercent = Number(fields[fieldCount++]);
+    const userActiveCgtDaysL180 = Number(fields[fieldCount++]);
+    const userActivePreDiffCgtDaysL180 = Number(fields[fieldCount++]);
+    const editCount = Number(fields[fieldCount++]);
+    const ploc = Number(fields[fieldCount++]);
+    const stats: Stats = {
+      fileCount: 1,
+      editCountL180: editCount,
+      ploc,
+    };
+    const datas: Datas = {
+      logicalComplexity,
+      codeCoveragePercent,
+      userActiveCgtDaysL180,
+      userActivePreDiffCgtDaysL180,
+    };
+    const file: ParsedFileEntry = {
+      managers,
+      managersRaw: '/' + managersRaw + '/',
+      pathParts,
+      pathRaw: '/' + path + '/',
+      diffs,
+      stats,
+      datas,
+    };
+    workContent.files.push(file);
+  }
+  // Stitch together diffs and tasks.
+  for (const diff of workContent.diffs.values()) {
+    for (const taskId of diff.taskIds) {
+      const task = workContent.tasks.get(taskId);
+      if (!task) {
+        console.warn(`Missing task T${taskId} for diff D${diff.id}`);
+        continue;
+      }
+      diff.tasks.push(task);
+    }
+  }
+  fileWithWorkContent.workContent = workContent;
+  return workContent;
+}
+
 export function importWorkTrack(contents: TextFileContent, fileName: string): ProfileGroup {
+  const parsedData = parseWorkContent(contents);
+  const filters = getActiveFilters();
+  const managerFilter = buildTextFilter(filters.managersInclude, filters.managersExclude);
+  const pathFilter = buildTextFilter(filters.pathInclude, filters.pathExclude);
+  const authorFilter = buildTextFilter(filters.authorsInclude, filters.authorsExclude);
+  const titleFilter = buildTextFilter(filters.titleInclude, filters.titleExclude);
+  const tagFilter = buildTextFilter(filters.tagsInclude, filters.tagsExclude);
   let totalWeight = 0;
   let nextKey = 100;
   const root: FileEntry = {
@@ -29,68 +274,103 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     name: 'Root',
     managers: [],
     stats: {},
+    datas: {},
     parent: null,
     children: new Map(),
+    diffs: [],
   };
-  const filters = getActiveFilters();
-  const managerFilter = buildTextFilter(filters.managersInclude, filters.managersExclude);
-  const pathFilter = buildTextFilter(filters.pathInclude, filters.pathExclude);
-  let lineIndex = 0;
-  for (const line of contents.splitLines()) {
-    // Skip the header line.
-    if (lineIndex++ == 0) {
+  for (const file of parsedData.files) {
+    if (!matchTextFilter(file.managersRaw, managerFilter)) {
       continue;
     }
-    const fields = line.split(/,/);
-    if (fields.length != 5) {
-      console.warn('Bad line: ', lineIndex, line);
+    if (!matchTextFilter(file.pathRaw, pathFilter)) {
       continue;
     }
-    let managersRaw = fields[0];
-    const vpFound = managersRaw.indexOf('ritandon');
-    if (vpFound >= 0) {
-      managersRaw = managersRaw.substring(vpFound);
+    const diffs: DiffEntry[] = [];
+    const fileTags = new Set<string>();
+    for (const diff of file.diffs) {
+      if (filters.diffTimeMax) {
+        if (diff.dateClosed > filters.diffTimeMax) {
+          continue;
+        }
+      }
+      if (filters.diffTimeMin) {
+        if (diff.dateClosed < filters.diffTimeMin) {
+          continue;
+        }
+      }
+      if (!matchTextFilter(diff.author, authorFilter)) {
+        continue;
+      }
+      if (!matchTextFilter(diff.title, titleFilter)) {
+        continue;
+      }
+      diffs.push(diff);
+      for (const task of diff.tasks) {
+        for (const tag of task.tags.keys()) {
+          fileTags.add(tag);
+        }
+      }
     }
-    if (!matchTextFilter(managersRaw, managerFilter)) {
+    if (!diffs.length) {
       continue;
     }
-    const managers = managersRaw.split('/');
-    const repo = fields[1];
-    const editCount = Number(fields[2]);
-    const ploc = Number(fields[3]);
-    let path = fields[4].trimEnd();
-    const repoPrefix = repo + '/';
-    if (!path.startsWith(repoPrefix)) {
-      path = repoPrefix + path;
-    }
-    if (!matchTextFilter(path, pathFilter)) {
+    // Apply tag filter.
+    if (!matchSetToTextFilter(fileTags, tagFilter)) {
       continue;
     }
-    const pathParts = path.split('/');
-    const stats = {
-      fileCount: 1,
-      editCount,
-      ploc,
-      weight: Math.min(10, editCount),
-    };
+    // TODO: Make the weight configurable.
+    const stats = { ...file.stats, weight: Math.min(file.stats.editCountL180, 10) };
+    // Add the file and path parents to the tree.
     totalWeight += stats.weight;
     let parent = root;
     accumulateStats(root, stats);
-    addManagers(root.managers, managers);
-    for (const part of pathParts) {
+    addManagers(root.managers, file.managers);
+    let leafEntry: FileEntry | null = null;
+    for (let i = 0; i < file.pathParts.length; i++) {
+      const leaf = (i == file.pathParts.length - 1);
+      const part = file.pathParts[i];
       let fileEntry = parent.children.get(part);
       if (!fileEntry) {
-        fileEntry = { key: nextKey++, name: part, managers: [], stats: { ...stats }, children: new Map(), parent };
+        fileEntry = {
+          key: nextKey++,
+          name: part,
+          managers: [],
+          // Make weight configurable
+          stats: { ...stats },
+          datas: leaf ? file.datas : {},
+          children: new Map(),
+          parent,
+          diffs: leaf ? diffs : [],
+        };
         parent.children.set(part, fileEntry);
+        if (leaf) {
+          leafEntry = fileEntry;
+        }
       } else {
         accumulateStats(fileEntry, stats);
       }
       // Make sure managers get added to a new file entry or parent directory.
-      addManagers(fileEntry.managers, managers);
+      addManagers(fileEntry.managers, file.managers);
       parent = fileEntry;
     }
+    // Bubble up diffs - but keep it to a few for each level.
+    if (leafEntry) {
+      for (let nextParent = leafEntry.parent; nextParent != null; nextParent = nextParent.parent) {
+        if (nextParent.diffs.length >= maxDiffPeek) {
+          break;
+        }
+        for (const diff of leafEntry.diffs) {
+          if (!nextParent.diffs.includes(diff)) {
+            nextParent.diffs.push(diff);
+            if (nextParent.diffs.length >= maxDiffPeek) {
+              break;
+            }
+          }
+        }
+      }
+    }
   }
-
   const buildContext = {
     runningWeight: 0,
     profile: new CallTreeProfileBuilder(totalWeight)
@@ -124,6 +404,7 @@ function renderTooltip(fileEntry: FileEntry): h.JSX.Element {
 }
 
 function addToProfile(context: BuildContext, fileEntry: FileEntry): void {
+  fileEntry.diffs.sort((a, b) => b.dateClosed - a.dateClosed);
   const frameInfo: FrameInfo = {
     key: fileEntry.key,
     name: fileEntry.name,
@@ -180,7 +461,7 @@ export function getManagers(managers: string[][]): string {
 
 export function getPath(fileEntry: FileEntry): string {
   const parts = [];
-  for (let current : FileEntry | null = fileEntry; current; current = current.parent) {
+  for (let current: FileEntry | null = fileEntry; current; current = current.parent) {
     parts.push(current.name);
   }
   return parts.reverse().join('/');
@@ -197,6 +478,12 @@ export type Filters = {
   pathExclude?: string;
   tagsInclude?: string;
   tagsExclude?: string;
+  authorsInclude?: string;
+  authorsExclude?: string;
+  titleInclude?: string;
+  titleExclude?: string;
+  diffTimeMin?: number;
+  diffTimeMax?: number;
   taskSev?: boolean;
   taskSla?: boolean;
   taskPriUbn?: boolean;
@@ -233,7 +520,7 @@ function inputToFilterArray(input: string | undefined) {
 function buildTextFilter(includesInput: string | undefined, excludesInput: string | undefined): TextFilter {
   const includes = inputToFilterArray(includesInput);
   const excludes = inputToFilterArray(excludesInput);
-  return {excludes, includes};
+  return { excludes, includes };
 }
 
 function matchTextFilter(key: string, filters: TextFilter) {
@@ -258,4 +545,24 @@ function matchTextFilter(key: string, filters: TextFilter) {
     }
   }
   return true;
+}
+
+function matchArrayToTextFilter(keys: string[], filters: TextFilter) {
+  if (!filters.includes.length && !filters.excludes.length) {
+    return true;
+  }
+  const joined = '/' + keys.join('/') + '/';
+  return matchTextFilter(joined, filters);
+}
+
+function matchSetToTextFilter(keys: Set<string>, filters: TextFilter) {
+  if (!filters.includes.length && !filters.excludes.length) {
+    return true;
+  }
+  return matchArrayToTextFilter([...keys.values()], filters);
+}
+
+
+function trimEnd(str: string) {
+  return str.trimEnd();
 }
