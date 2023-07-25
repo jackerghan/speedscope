@@ -30,6 +30,7 @@ export const getFlamechartStyle = withTheme(theme =>
       background: theme.bgPrimaryColor,
       width: '100vw',
       bottom: 0,
+      overflow: "auto",
     },
     detailView: {
       display: 'grid',

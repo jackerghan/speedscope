@@ -3,7 +3,11 @@ import { TextFileContent } from './utils'
 
 import { h } from 'preact'
 
-const maxDiffPeek = 5;
+export const maxDiffPeek = 5;
+
+export enum WorkConsts {
+  maxDiffPeek = 5,
+}
 
 export type Stats = {
   [id: string]: number;
@@ -267,6 +271,8 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
   const authorFilter = buildTextFilter(filters.authorsInclude, filters.authorsExclude);
   const titleFilter = buildTextFilter(filters.titleInclude, filters.titleExclude);
   const tagFilter = buildTextFilter(filters.tagsInclude, filters.tagsExclude);
+  const dateMin = dateFilterToEpoch(filters.diffDateMin, 0);
+  const dateMax = dateFilterToEpoch(filters.diffDateMax, 24 * 60 * 60);
   let totalWeight = 0;
   let nextKey = 100;
   const root: FileEntry = {
@@ -289,13 +295,13 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     const diffs: DiffEntry[] = [];
     const fileTags = new Set<string>();
     for (const diff of file.diffs) {
-      if (filters.diffTimeMax) {
-        if (diff.dateClosed > filters.diffTimeMax) {
+      if (dateMin) {
+        if (diff.dateClosed < dateMin) {
           continue;
         }
       }
-      if (filters.diffTimeMin) {
-        if (diff.dateClosed < filters.diffTimeMin) {
+      if (dateMax) {
+        if (diff.dateClosed >= dateMax) {
           continue;
         }
       }
@@ -357,13 +363,13 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     // Bubble up diffs - but keep it to a few for each level.
     if (leafEntry) {
       for (let nextParent = leafEntry.parent; nextParent != null; nextParent = nextParent.parent) {
-        if (nextParent.diffs.length >= maxDiffPeek) {
+        if (nextParent.diffs.length >= WorkConsts.maxDiffPeek + 1) {
           break;
         }
         for (const diff of leafEntry.diffs) {
           if (!nextParent.diffs.includes(diff)) {
             nextParent.diffs.push(diff);
-            if (nextParent.diffs.length >= maxDiffPeek) {
+            if (nextParent.diffs.length >= WorkConsts.maxDiffPeek + 1) {
               break;
             }
           }
@@ -482,8 +488,8 @@ export type Filters = {
   authorsExclude?: string;
   titleInclude?: string;
   titleExclude?: string;
-  diffTimeMin?: number;
-  diffTimeMax?: number;
+  diffDateMin?: string;
+  diffDateMax?: string;
   taskSev?: boolean;
   taskSla?: boolean;
   taskPriUbn?: boolean;
@@ -562,7 +568,24 @@ function matchSetToTextFilter(keys: Set<string>, filters: TextFilter) {
   return matchArrayToTextFilter([...keys.values()], filters);
 }
 
-
 function trimEnd(str: string) {
   return str.trimEnd();
+}
+
+function dateFilterToEpoch(dateStr: string | undefined, secondsToAdd: number) : number | null {
+  if (!dateStr) {
+    return null;
+  }
+  const fields = dateStr.split('/');
+  if (fields.length != 3) {
+    return null;
+  }
+  // From local time.
+  const date = new Date(`20${fields[0]}-${fields[1]}-${fields[2]}T00:00:00`);
+  // Check for valid date...
+  if (!date.getTime()) {
+    return null;
+  }
+  date.setSeconds(date.getSeconds() + secondsToAdd);
+  return date.getTime() / 1000;
 }

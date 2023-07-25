@@ -342,26 +342,6 @@ export class Application extends StatelessComponent<ApplicationProps> {
   }
 
   onWindowKeyPress = async (ev: KeyboardEvent) => {
-    if (ev.key === '1') {
-      this.props.setViewMode(ViewMode.CHRONO_FLAME_CHART)
-    } else if (ev.key === '2') {
-      this.props.setViewMode(ViewMode.LEFT_HEAVY_FLAME_GRAPH)
-    } else if (ev.key === '3') {
-      this.props.setViewMode(ViewMode.SANDWICH_VIEW)
-    } else if (ev.key === 'r') {
-      const {flattenRecursion} = this.props
-      this.props.setFlattenRecursion(!flattenRecursion)
-    } else if (ev.key === 'n') {
-      const {activeProfileState} = this.props
-      if (activeProfileState) {
-        this.props.setProfileIndexToView(activeProfileState.index + 1)
-      }
-    } else if (ev.key === 'p') {
-      const {activeProfileState} = this.props
-      if (activeProfileState) {
-        this.props.setProfileIndexToView(activeProfileState.index - 1)
-      }
-    }
   }
 
   private saveFile = () => {
@@ -386,12 +366,39 @@ export class Application extends StatelessComponent<ApplicationProps> {
   private onWindowKeyDown = async (ev: KeyboardEvent) => {
     // This has to be handled on key down in order to prevent the default
     // page save action.
-    if (ev.key === 's' && (ev.ctrlKey || ev.metaKey)) {
-      ev.preventDefault()
-      this.saveFile()
-    } else if (ev.key === 'o' && (ev.ctrlKey || ev.metaKey)) {
-      ev.preventDefault()
-      this.browseForFile()
+    if (ev.ctrlKey || ev.metaKey) {
+      if (ev.key === 's') {
+        ev.preventDefault()
+        this.saveFile()
+      } else if (ev.key === 'o') {
+        ev.preventDefault()
+        this.browseForFile()
+      } else if (ev.key === '1') {
+        ev.preventDefault()
+        this.props.setViewMode(ViewMode.CHRONO_FLAME_CHART)
+      } else if (ev.key === '2') {
+        ev.preventDefault()
+        this.props.setViewMode(ViewMode.LEFT_HEAVY_FLAME_GRAPH)
+      } else if (ev.key === '3') {
+        ev.preventDefault()
+        this.props.setViewMode(ViewMode.SANDWICH_VIEW)
+      } else if (ev.key === 'r') {
+        ev.preventDefault()
+        const {flattenRecursion} = this.props
+        this.props.setFlattenRecursion(!flattenRecursion)
+      } else if (ev.key === 'n') {
+        ev.preventDefault()
+        const {activeProfileState} = this.props
+        if (activeProfileState) {
+          this.props.setProfileIndexToView(activeProfileState.index + 1)
+        }
+      } else if (ev.key === 'p') {
+        ev.preventDefault()
+        const {activeProfileState} = this.props
+        if (activeProfileState) {
+          this.props.setProfileIndexToView(activeProfileState.index - 1)
+        }
+      }
     }
   }
 
