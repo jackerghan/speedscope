@@ -33,6 +33,7 @@ export type DiffEntry = {
   fileCount: number
   extensions: string[]
   taskIds: number[]
+  reviewers: string[]
   tasks: TaskEntry[]
 }
 
@@ -131,6 +132,7 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
       .split('/')
       .map((x: string) => Number(x))
       .filter((y: number) => y != 0)
+    const reviewers = (fields.length <= fieldCount) ? [] : fields[fieldCount++].split('/')
     const diff = {
       id: diffId,
       fbid: diffFbid,
@@ -147,6 +149,7 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
       fileCount,
       extensions,
       taskIds,
+      reviewers,
       tasks: [],
     }
     workContent.diffs.set(diffFbid, diff)
@@ -192,11 +195,8 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
     }
     fieldCount = 0
     let managersRaw = fields[fieldCount++]
-    const vpFound = managersRaw.indexOf('ritandon')
-    if (vpFound >= 0) {
-      managersRaw = managersRaw.substring(vpFound)
-    }
-    const managers = managersRaw.split('/')
+    // Shedding zuck etc. above VP, e.g. ritandon.
+    const managers = managersRaw.split('/').slice(3);
     const diffFbids = fields[fieldCount++].split('/')
     const repo = fields[fieldCount++]
     let path = fields[fieldCount++]
@@ -272,6 +272,7 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
   const managerFilter = buildTextFilter(filters.managersInclude, filters.managersExclude)
   const pathFilter = buildTextFilter(filters.pathInclude, filters.pathExclude)
   const authorFilter = buildTextFilter(filters.authorsInclude, filters.authorsExclude)
+  const reviewerFilter = buildTextFilter(filters.reviewersInclude, filters.reviewersExclude)
   const titleFilter = buildTextFilter(filters.titleInclude, filters.titleExclude)
   const tagFilter = buildTextFilter(filters.tagsInclude, filters.tagsExclude)
   const dateMin = dateFilterToEpoch(filters.diffDateMin, 0)
@@ -310,6 +311,9 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
       }
       if (!matchTextFilter(diff.author, authorFilter)) {
         continue
+      }
+      if (!matchArrayToTextFilter(diff.reviewers, reviewerFilter)) {
+        continue;
       }
       if (!matchTextFilter(diff.title, titleFilter)) {
         continue
@@ -489,6 +493,8 @@ export type Filters = {
   tagsExclude?: string
   authorsInclude?: string
   authorsExclude?: string
+  reviewersInclude?: string
+  reviewersExclude?: string
   titleInclude?: string
   titleExclude?: string
   diffDateMin?: string

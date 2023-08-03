@@ -81,9 +81,16 @@ export function FilterView(props: FilterViewProps) {
       <div className={css(style.filterViewRow)}>
         <span>Diff Author:</span>
         <span>Include:</span>
-        <input type="text" value={filters.authorsInclude} onInput={inputToField('authorInclude')} />
+        <input type="text" value={filters.authorsInclude} onInput={inputToField('authorsInclude')} />
         <span>Exclude:</span>
-        <input type="text" value={filters.authorsExclude} onInput={inputToField('authorExclude')} />
+        <input type="text" value={filters.authorsExclude} onInput={inputToField('authorsExclude')} />
+      </div>
+      <div className={css(style.filterViewRow)}>
+        <span>Diff Reviewers:</span>
+        <span>Include:</span>
+        <input type="text" value={filters.reviewersInclude} onInput={inputToField('reviewersInclude')} />
+        <span>Exclude:</span>
+        <input type="text" value={filters.reviewersExclude} onInput={inputToField('reviewersExclude')} />
       </div>
       <div className={css(style.filterViewRow)}>
         <span>Diff Closed:</span>
