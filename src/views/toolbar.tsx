@@ -110,20 +110,7 @@ function ToolbarCenterContent(props: ToolbarProps): JSX.Element {
 
   useEffect(() => {
     const onWindowKeyPress = (ev: KeyboardEvent) => {
-      if (ev.key === 't') {
-        ev.preventDefault()
-        setProfileSelectShown(true)
-      }
-    }
-    window.addEventListener('keypress', onWindowKeyPress)
-    return () => {
-      window.removeEventListener('keypress', onWindowKeyPress)
-    }
-  }, [setProfileSelectShown])
-
-  useEffect(() => {
-    const onWindowKeyPress = (ev: KeyboardEvent) => {
-      if (ev.key === 't') {
+      if (ev.key === 't' && (ev.ctrlKey || ev.metaKey)) {
         ev.preventDefault()
         setProfileSelectShown(true)
       }

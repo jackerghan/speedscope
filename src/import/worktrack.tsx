@@ -217,11 +217,6 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
         }
       }
     }
-    if (!diffs.length) {
-      // Warn if no diffs even if no filters and ...
-      console.warn(`${path} has no diffs with details ${diffFbids}`)
-      continue
-    }
     const pathParts = path.split('/')
     const logicalComplexity = Number(fields[fieldCount++])
     const codeCoveragePercent = Number(fields[fieldCount++])
@@ -229,6 +224,11 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
     const userActivePreDiffCgtDaysL180 = Number(fields[fieldCount++])
     const editCount = Number(fields[fieldCount++])
     const ploc = Number(fields[fieldCount++])
+    if (!diffs.length) {
+      // Warn if no diffs even if no filters and ...
+      console.warn(`${path} has no diffs with details ${diffFbids}`)
+      continue
+    }
     const stats: Stats = {
       fileCount: 1,
       editCountL180: editCount,
@@ -524,36 +524,60 @@ export function setActiveFilters(filters: Filters) {
 
 type TextFilter = {
   includes: Array<string>
+  includesRegex: Array<RegExp>
   excludes: Array<string>
+  excludesRegex: Array<RegExp>
 }
 
-function inputToFilterArray(input: string | undefined) {
+function inputToFilterArray(input: string | undefined) : [Array<string>, Array<RegExp>] {
   if (!input) {
-    return []
+    return [[], []]
   }
-  const patterns = input.split(' ')
+  let patterns = input.split(' ')
   // Filter out zero length patterns
-  return patterns.filter(v => v.length != 0).map(e => e.toLocaleLowerCase())
+  patterns = patterns.filter(v => v.length != 0).map(e => e.toLocaleLowerCase())
+  const textPatterns : Array<string> = [];
+  const regexPatterns : Array<RegExp> = [];
+  for (const pattern of patterns) {
+    if (isAlphaNumeric(pattern)) {
+      textPatterns.push(pattern);
+      continue;
+    }
+    try {
+      regexPatterns.push(new RegExp(pattern));
+    } catch {
+      console.error('Ignoring bad regexp for filter: ' + pattern);
+    }
+  }
+  return [textPatterns, regexPatterns]
 }
 
 function buildTextFilter(
   includesInput: string | undefined,
   excludesInput: string | undefined,
 ): TextFilter {
-  const includes = inputToFilterArray(includesInput)
-  const excludes = inputToFilterArray(excludesInput)
-  return { excludes, includes }
+  const [includes, includesRegex] = inputToFilterArray(includesInput)
+  const [excludes, excludesRegex] = inputToFilterArray(excludesInput)
+  return { excludes, excludesRegex, includes, includesRegex}
 }
 
 function matchTextFilter(key: string, filters: TextFilter) {
   const keylc = key.toLowerCase()
   // If there are includes, key must match at least one.
-  if (filters.includes.length) {
+  if (filters.includes.length || filters.includesRegex.length) {
     let matched = false
     for (const pattern of filters.includes) {
       if (keylc.includes(pattern)) {
         matched = true
         break
+      }
+    }
+    if (!matched) {
+      for (const pattern of filters.includesRegex) {
+        if (keylc.search(pattern) >= 0) {
+          matched = true
+          break
+        }
       }
     }
     if (!matched) {
@@ -563,6 +587,11 @@ function matchTextFilter(key: string, filters: TextFilter) {
   // Check for excludes.
   for (const pattern of filters.excludes) {
     if (keylc.includes(pattern)) {
+      return false
+    }
+  }
+  for (const pattern of filters.excludesRegex) {
+    if (keylc.search(pattern) >= 0) {
       return false
     }
   }
@@ -611,3 +640,16 @@ function toNumberOrZero(x: any) {
   const num = Number(x);
   return num ? num : 0;
 }
+
+function isAlphaNumeric(str: string) {
+  var code, i, len;
+  for (i = 0, len = str.length; i < len; i++) {
+    code = str.charCodeAt(i);
+    if (!(code > 47 && code < 58) && // numeric (0-9)
+        !(code > 64 && code < 91) && // upper alpha (A-Z)
+        !(code > 96 && code < 123)) { // lower alpha (a-z)
+      return false;
+    }
+  }
+  return true;
+};
