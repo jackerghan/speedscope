@@ -1,7 +1,7 @@
-import {ProfileGroup, FrameInfo, CallTreeProfileBuilder} from '../lib/profile'
-import {TextFileContent} from './utils'
+import { ProfileGroup, FrameInfo, CallTreeProfileBuilder } from '../lib/profile'
+import { TextFileContent } from './utils'
 
-import {h} from 'preact'
+import { h } from 'preact'
 
 export const maxDiffPeek = 5
 
@@ -333,7 +333,9 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
       continue
     }
     // TODO: Make the weight configurable.
-    const stats = {...file.stats, weight: Math.min(file.stats.editCountL180, 10)}
+    const baseWeight = filters.weightStat === 'diffs' ? diffs.length : toNumberOrZero(file.stats[filters.weightStat]);
+    const weight = Math.min(baseWeight, toNumberOrZero(filters.weightCap));
+    const stats = { ...file.stats, weight };
     // Add the file and path parents to the tree.
     totalWeight += stats.weight
     let parent = root
@@ -350,8 +352,8 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
           name: part,
           managers: [],
           // Make weight configurable
-          stats: {...stats},
-          datas: leaf ? file.datas : {},
+          stats: { ...stats },
+          datas: leaf ? { ...file.datas, diffs: diffs.length } : {},
           children: new Map(),
           parent,
           diffs: leaf ? diffs : [],
@@ -506,9 +508,11 @@ export type Filters = {
   taskPriMid?: boolean
   taskPriLow?: boolean
   taskPriWish?: boolean
+  weightStat: string
+  weightCap: string
 }
 
-let activeFilters: Filters = {}
+let activeFilters: Filters = { weightStat: 'diffs', weightCap: '10' }
 
 export function getActiveFilters(): Filters {
   return activeFilters
@@ -538,7 +542,7 @@ function buildTextFilter(
 ): TextFilter {
   const includes = inputToFilterArray(includesInput)
   const excludes = inputToFilterArray(excludesInput)
-  return {excludes, includes}
+  return { excludes, includes }
 }
 
 function matchTextFilter(key: string, filters: TextFilter) {
@@ -601,4 +605,9 @@ function dateFilterToEpoch(dateStr: string | undefined, secondsToAdd: number): n
   }
   date.setSeconds(date.getSeconds() + secondsToAdd)
   return date.getTime() / 1000
+}
+
+function toNumberOrZero(x: any) {
+  const num = Number(x);
+  return num ? num : 0;
 }

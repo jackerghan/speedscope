@@ -1,8 +1,8 @@
-import {h} from 'preact'
-import {useCallback} from 'preact/hooks'
-import {StyleSheet, css} from 'aphrodite'
-import {Sizes} from './style'
-import {useTheme, withTheme} from './themes/theme'
+import { h } from 'preact'
+import { useCallback } from 'preact/hooks'
+import { StyleSheet, css } from 'aphrodite'
+import { Sizes } from './style'
+import { useTheme, withTheme } from './themes/theme'
 import {
   FileEntry,
   getManagers,
@@ -15,6 +15,8 @@ import {
   DiffEntry,
   WorkConsts,
 } from '../import/worktrack'
+
+const maxDiffsToCollect = 1000;
 
 export interface FilterViewProps {
   reloadLastProfile(): void
@@ -107,6 +109,12 @@ export function FilterView(props: FilterViewProps) {
         <input type="text" value={filters.tagsExclude} onInput={inputToField('tagsExclude')} />
       </div>
       <div className={css(style.filterViewRow)}>
+        <span>Weight stat:</span>
+        <input type="text" value={filters.weightStat} onInput={inputToField('weightStat')} />
+        <span>Weight cap:</span>
+        <input type="text" value={filters.weightCap} onInput={inputToField('weightCap')} />
+      </div>
+      <div className={css(style.filterViewRow)}>
         <span>Task:</span>
         <input type="checkbox" checked={filters.taskSev} onInput={checkboxToField('taskSev')} />
         <span>SEV</span>
@@ -159,12 +167,15 @@ interface EntryViewProps {
 
 export function EntryView(props: EntryViewProps): h.JSX.Element {
   const style = getStyle(useTheme())
-  const {fileEntry, target} = props
+  const { fileEntry, target } = props
   const detailsView = target === 'details'
   const rows: h.JSX.Element[] = []
   let list: h.JSX.Element[] = []
   const diffs = getDiffsForTarget(fileEntry, target)
-  rows.push(<p>Diffs:</p>)
+  const hasMoreDiffs = detailsView ?
+    (diffs.length >= maxDiffsToCollect) :
+    (fileEntry.children.size && (diffs.length >= WorkConsts.maxDiffPeek));
+  rows.push(<p>Diffs [{diffs.length}{hasMoreDiffs ? '+' : ''}]:</p>)
   list = []
   for (const diff of diffs) {
     const dateClosed = toMonthDate(new Date(1000 * diff.dateClosed))
@@ -221,7 +232,7 @@ function getDiffsForTarget(fileEntry: FileEntry, target: RenderTarget): DiffEntr
   if (target !== 'details') {
     return fileEntry.diffs
   }
-  const collected = [...collectDiffs(fileEntry, 100, new Set())]
+  const collected = [...collectDiffs(fileEntry, maxDiffsToCollect, new Set())]
   collected.sort((a, b) => b.dateClosed - a.dateClosed)
   return collected
 }
