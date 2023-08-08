@@ -482,6 +482,42 @@ export function getPath(fileEntry: FileEntry): string {
   return parts.reverse().join('/')
 }
 
+export function getLink(fileEntry: FileEntry): string {
+  let pathParts = getPath(fileEntry).split('/');
+  // Drop the Root and repo from the path.
+  const pathForUrl = pathParts.slice(2).join('/');
+  const repo = pathParts[1];
+  let repoForUrl = getRepoUrlPart(repo);
+  if (repoForUrl === '') {
+    return 'about:blank';
+  }
+  return ['https://www.internalfb.com/code', repoForUrl, pathForUrl].join('/');
+}
+
+function getRepoUrlPart(repo: string) {
+  const fbsourcePrefix = 'fbsource/[history]';
+  switch (repo) {
+    case 'www':
+      return 'www/[history]';
+    break;
+    case 'fbandroid':
+      return fbsourcePrefix + '/fbandroid';
+    break;
+    case 'fbcode':
+      return fbsourcePrefix + '/fbcode';
+    break;
+    case 'fbobjc':
+      return fbsourcePrefix + '/fbobjc';
+    break;
+    case 'xplat':
+      return fbsourcePrefix + '/xplat';
+    break;
+  default:
+    return '';
+  }
+}
+
+
 function nonLocaleCompare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0
 }

@@ -6,6 +6,7 @@ import { useTheme, withTheme } from './themes/theme'
 import {
   FileEntry,
   getManagers,
+  getLink,
   getPath,
   typedKeys,
   setRendererImpl,
@@ -221,7 +222,7 @@ export function EntryView(props: EntryViewProps): h.JSX.Element {
   }
   return (
     <div className={css(style.container)}>
-      {detailsView ? <p>{getPath(fileEntry)}</p> : undefined}
+      {detailsView ? <a href={getLink(fileEntry)}>{getPath(fileEntry)}</a> : undefined}
       <p>{getManagers(fileEntry.managers)}</p>
       {rows}
     </div>
