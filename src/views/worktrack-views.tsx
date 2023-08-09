@@ -1,7 +1,7 @@
-import { h } from 'preact'
+import { h, ComponentChildren } from 'preact'
 import { useCallback } from 'preact/hooks'
 import { StyleSheet, css } from 'aphrodite'
-import { Sizes } from './style'
+import { Duration, Sizes } from './style'
 import { useTheme, withTheme } from './themes/theme'
 import {
   FileEntry,
@@ -182,7 +182,9 @@ export function EntryView(props: EntryViewProps): h.JSX.Element {
     const dateClosed = toMonthDate(new Date(1000 * diff.dateClosed))
     list.push(
       <li>
-        <a href={`https://www.internalfb.com/diff/D${diff.id}`}>{'D' + diff.id}</a>
+        <NewTabOnlyLink href={`https://www.internalfb.com/diff/D${diff.id}`}>
+          {'D' + diff.id}
+        </NewTabOnlyLink>
         {' ' + diff.author} {dateClosed} {diff.title} [{diff.fileCount}/{diff.extensions.join(',')}]
       </li>,
     )
@@ -222,7 +224,9 @@ export function EntryView(props: EntryViewProps): h.JSX.Element {
   }
   return (
     <div className={css(style.container)}>
-      {detailsView ? <a href={getLink(fileEntry)}>{getPath(fileEntry)}</a> : undefined}
+      {detailsView ? <NewTabOnlyLink href={getLink(fileEntry)}>
+        {getPath(fileEntry)}
+      </NewTabOnlyLink> : undefined}
       <p>{getManagers(fileEntry.managers)}</p>
       {rows}
     </div>
@@ -255,6 +259,26 @@ function collectDiffs(fileEntry: FileEntry, max: number, diffs: Set<DiffEntry>) 
     }
   }
   return diffs
+}
+
+interface LinkProps {
+  children: ComponentChildren
+  href: string
+}
+
+function NewTabOnlyLink(props: LinkProps): h.JSX.Element {
+  const style = getStyle(useTheme())
+  return (
+    <a className={css(style.link)} onClick={preventClickNavigation} href={props.href}>
+      {props.children}
+    </a>
+  )
+}
+
+function preventClickNavigation(ev: MouseEvent) {
+  if (ev.button == 0 && !ev.ctrlKey && !ev.metaKey) {
+    ev.preventDefault();
+  }
 }
 
 function renderEntry(fileEntry: FileEntry, target: RenderTarget): h.JSX.Element {
@@ -296,6 +320,15 @@ const getStyle = withTheme(theme =>
       alignItems: 'center',
       gap: '5px',
       paddingTop: '10px',
+    },
+    link: {
+      color: theme.selectionPrimaryColor,
+      cursor: 'pointer',
+      textDecoration: 'none',
+      transition: `all ${Duration.HOVER_CHANGE} ease-in`,
+      ':hover': {
+        color: theme.selectionSecondaryColor,
+      },
     },
   }),
 )
