@@ -185,7 +185,9 @@ export function EntryView(props: EntryViewProps): h.JSX.Element {
         <NewTabOnlyLink href={`https://www.internalfb.com/diff/D${diff.id}`}>
           {'D' + diff.id}
         </NewTabOnlyLink>
-        {' ' + diff.author} {dateClosed} {diff.title} [{diff.fileCount}/{diff.extensions.join(',')}]
+        {' ' + diff.author} {dateClosed} {diff.title}
+        [{diff.fileCount}/{diff.extensions.join(',')}]
+        [{diff.reviewers.sort().join(',')}]
       </li>,
     )
     if (!detailsView && list.length >= WorkConsts.maxDiffPeek) {

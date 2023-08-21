@@ -95,7 +95,7 @@ async function _importProfileGroup(dataSource: ProfileDataSource): Promise<Profi
   if (fileName.endsWith('.speedscope.json')) {
     console.log('Importing as speedscope json file')
     return importSpeedscopeProfiles(contents.parseAsJSON())
-  } else if (fileName.endsWith('work.csv')) {
+  } else if (fileName.match(/\.work[^.]*\.csv/)) {
     console.log('Importing as work track data')
     return importWorkTrack(contents, fileName)
   } else if (/Trace-\d{8}T\d{6}/.exec(fileName)) {
