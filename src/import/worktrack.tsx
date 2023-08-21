@@ -173,7 +173,7 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
     const title = fields[fieldCount++]
     const priority = Number(fields[fieldCount++])
     const taskType = Number(fields[fieldCount++])
-    const tags = fields[fieldCount++].split(':::')
+    const tags: Set<string> = new Set(fields[fieldCount++].split(':::'))
     const task: TaskEntry = {
       id: taskId,
       title,
@@ -205,16 +205,10 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
       path = repoPrefix + path
     }
     const diffs: DiffEntry[] = []
-    const fileTags = new Set<string>()
     for (const diffFbid of diffFbids) {
       const diff = workContent.diffs.get(diffFbid)
       if (diff) {
         diffs.push(diff)
-        for (const task of diff.tasks) {
-          for (const tag of task.tags.keys()) {
-            fileTags.add(tag)
-          }
-        }
       }
     }
     const pathParts = path.split('/')
@@ -275,6 +269,7 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
   const reviewerFilter = buildTextFilter(filters.reviewersInclude, filters.reviewersExclude)
   const titleFilter = buildTextFilter(filters.titleInclude, filters.titleExclude)
   const tagFilter = buildTextFilter(filters.tagsInclude, filters.tagsExclude)
+  const priFilter = buildPriorityFilter(filters);
   const dateMin = dateFilterToEpoch(filters.diffDateMin, 0)
   const dateMax = dateFilterToEpoch(filters.diffDateMax, 24 * 60 * 60)
   let totalWeight = 0
@@ -297,7 +292,6 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
       continue
     }
     const diffs: DiffEntry[] = []
-    const fileTags = new Set<string>()
     for (const diff of file.diffs) {
       if (dateMin) {
         if (diff.dateClosed < dateMin) {
@@ -318,22 +312,50 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
       if (!matchTextFilter(diff.title, titleFilter)) {
         continue
       }
-      diffs.push(diff)
+      const diffTags = new Set<string>()
+      const diffTaskPris = new Set<number>;
+      let sevDiff = false;
+      let slaDiff = false;
+      let launchBlockingDiff = false;
       for (const task of diff.tasks) {
-        for (const tag of task.tags.keys()) {
-          fileTags.add(tag)
+        sevDiff ||= isSevTask(task);
+        slaDiff ||= isSlaTask(task);
+        launchBlockingDiff ||= isLaunchBlockingTask(task);
+        diffTaskPris.add(task.priority);
+        for (const tag of task.tags) {
+          diffTags.add(tag)
         }
       }
+      if (!matchSetToTextFilter(diffTags, tagFilter)) {
+        continue
+      }
+      if (!matchPriorityFilter(diffTaskPris, priFilter)) {
+        continue
+      }
+      // If a category has been specified, one category must match.
+      if (filters.taskSev || filters.taskSla || filters.taskLaunchBlocking) {
+        let matchedCategory = false;
+        if (filters.taskSev && sevDiff) {
+          matchedCategory = true;
+        }
+        if (filters.taskSla && slaDiff) {
+          matchedCategory = true
+        }
+        if (filters.taskLaunchBlocking && launchBlockingDiff) {
+          matchedCategory = true
+        }
+        if (!matchedCategory) {
+          continue;
+        }
+      }
+      diffs.push(diff)
     }
     if (!diffs.length) {
       continue
     }
-    // Apply tag filter.
-    if (!matchSetToTextFilter(fileTags, tagFilter)) {
-      continue
-    }
-    // TODO: Make the weight configurable.
-    const baseWeight = filters.weightStat === 'diffs' ? diffs.length : toNumberOrZero(file.stats[filters.weightStat]);
+    const baseWeight = filters.weightStat === 'diffs' ?
+      diffs.length :
+      toNumberOrZero(file.stats[filters.weightStat]);
     const weight = Math.min(baseWeight, toNumberOrZero(filters.weightCap));
     const stats = { ...file.stats, weight };
     // Add the file and path parents to the tree.
@@ -351,7 +373,6 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
           key: nextKey++,
           name: part,
           managers: [],
-          // Make weight configurable
           stats: { ...stats },
           datas: leaf ? { ...file.datas, diffs: diffs.length } : {},
           children: new Map(),
@@ -389,6 +410,11 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
   const buildContext = {
     runningWeight: 0,
     profile: new CallTreeProfileBuilder(totalWeight),
+  }
+  // Make sure root will have some weight if nothing matched the filters.
+  if (!root.children.size) {
+    root.name = 'Nothing matched filters!';
+    root.stats.weight = 1;
   }
   addToProfile(buildContext, root)
   const builtProfile = buildContext.profile.build()
@@ -498,22 +524,27 @@ function getRepoUrlPart(repo: string) {
   const fbsourcePrefix = 'fbsource/[history]';
   switch (repo) {
     case 'www':
+    case 'www-other':
       return 'www/[history]';
-    break;
+      break;
     case 'fbandroid':
       return fbsourcePrefix + '/fbandroid';
-    break;
+      break;
     case 'fbcode':
       return fbsourcePrefix + '/fbcode';
-    break;
+      break;
     case 'fbobjc':
       return fbsourcePrefix + '/fbobjc';
-    break;
+      break;
+    case 'igsrv':
+    case 'fbsource-other':
+      return fbsourcePrefix;
+      break;
     case 'xplat':
       return fbsourcePrefix + '/xplat';
-    break;
-  default:
-    return '';
+      break;
+    default:
+      return '';
   }
 }
 
@@ -539,23 +570,27 @@ export type Filters = {
   diffDateMax?: string
   taskSev?: boolean
   taskSla?: boolean
+  taskLaunchBlocking?: boolean
   taskPriUbn?: boolean
   taskPriHigh?: boolean
   taskPriMid?: boolean
   taskPriLow?: boolean
   taskPriWish?: boolean
+  taskPriNone?: boolean
+  taskPriAny?: boolean
   weightStat: string
   weightCap: string
 }
 
-let activeFilters: Filters = { weightStat: 'diffs', weightCap: '10' }
+export const defaultFilter: Filters = { weightStat: 'diffs', weightCap: '10' };
+let activeFilters: Filters = { ...defaultFilter }
 
 export function getActiveFilters(): Filters {
   return activeFilters
 }
 
 export function setActiveFilters(filters: Filters) {
-  activeFilters = filters
+  activeFilters = {...filters}
 }
 
 type TextFilter = {
@@ -565,15 +600,15 @@ type TextFilter = {
   excludesRegex: Array<RegExp>
 }
 
-function inputToFilterArray(input: string | undefined) : [Array<string>, Array<RegExp>] {
+function inputToFilterArray(input: string | undefined): [Array<string>, Array<RegExp>] {
   if (!input) {
     return [[], []]
   }
   let patterns = input.split(' ')
   // Filter out zero length patterns
   patterns = patterns.filter(v => v.length != 0).map(e => e.toLocaleLowerCase())
-  const textPatterns : Array<string> = [];
-  const regexPatterns : Array<RegExp> = [];
+  const textPatterns: Array<string> = [];
+  const regexPatterns: Array<RegExp> = [];
   for (const pattern of patterns) {
     if (isAlphaNumeric(pattern)) {
       textPatterns.push(pattern);
@@ -594,7 +629,7 @@ function buildTextFilter(
 ): TextFilter {
   const [includes, includesRegex] = inputToFilterArray(includesInput)
   const [excludes, excludesRegex] = inputToFilterArray(excludesInput)
-  return { excludes, excludesRegex, includes, includesRegex}
+  return { excludes, excludesRegex, includes, includesRegex }
 }
 
 function matchTextFilter(key: string, filters: TextFilter) {
@@ -635,7 +670,10 @@ function matchTextFilter(key: string, filters: TextFilter) {
 }
 
 function matchArrayToTextFilter(keys: string[], filters: TextFilter) {
-  if (!filters.includes.length && !filters.excludes.length) {
+  if (!filters.includes.length &&
+    !filters.includesRegex.length &&
+    !filters.excludes.length &&
+    !filters.excludesRegex.length) {
     return true
   }
   const joined = '/' + keys.join('/') + '/'
@@ -643,10 +681,13 @@ function matchArrayToTextFilter(keys: string[], filters: TextFilter) {
 }
 
 function matchSetToTextFilter(keys: Set<string>, filters: TextFilter) {
-  if (!filters.includes.length && !filters.excludes.length) {
+  if (!filters.includes.length &&
+    !filters.includesRegex.length &&
+    !filters.excludes.length &&
+    !filters.excludesRegex.length) {
     return true
   }
-  return matchArrayToTextFilter([...keys.values()], filters)
+  return matchArrayToTextFilter([...keys], filters)
 }
 
 function trimEnd(str: string) {
@@ -682,10 +723,78 @@ function isAlphaNumeric(str: string) {
   for (i = 0, len = str.length; i < len; i++) {
     code = str.charCodeAt(i);
     if (!(code > 47 && code < 58) && // numeric (0-9)
-        !(code > 64 && code < 91) && // upper alpha (A-Z)
-        !(code > 96 && code < 123)) { // lower alpha (a-z)
+      !(code > 64 && code < 91) && // upper alpha (A-Z)
+      !(code > 96 && code < 123)) { // lower alpha (a-z)
       return false;
     }
   }
   return true;
 };
+
+function buildPriorityFilter(filters: Filters): Set<number> {
+  const priFilter = new Set<number>;
+  if (filters.taskPriNone || filters.taskPriAny) {
+    priFilter.add(0);
+  }
+  if (filters.taskPriUbn || filters.taskPriAny) {
+    priFilter.add(1);
+  }
+  if (filters.taskPriHigh || filters.taskPriAny) {
+    priFilter.add(2);
+  }
+  if (filters.taskPriMid || filters.taskPriAny) {
+    priFilter.add(3);
+  }
+  if (filters.taskPriLow || filters.taskPriAny) {
+    priFilter.add(4);
+  }
+  if (filters.taskPriWish || filters.taskPriAny) {
+    priFilter.add(5);
+  }
+  return priFilter;
+}
+
+function matchPriorityFilter(taskPris: Set<number>, priFilter: Set<number>) {
+  // No priority filters specified - matches true even if there are no tasks.
+  if (!priFilter.size) {
+    return true;
+  }
+  // Note if priority filter is specified, we won't match diffs with no tasks.
+  for (const taskPriority of taskPris) {
+    if (priFilter.has(taskPriority)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function isSlaTask(task: TaskEntry): boolean {
+  return false;
+}
+
+export function isSevTask(task: TaskEntry): boolean {
+  return task.tags.has('SEV Task');
+}
+
+export function isLaunchBlockingTask(task: TaskEntry): boolean {
+  return task.tags.has('launch-blocking');
+}
+
+export function getTaskPriorityName(priority: number) {
+  switch (priority) {
+    case 0:
+      return 'none';
+    case 1:
+      return 'ubn';
+    case 2:
+      return 'high';
+    case 3:
+      return 'mid';
+    case 4:
+      return 'low';
+    case 5:
+      return 'wish';
+    default:
+      return 'unknown';
+  }
+}

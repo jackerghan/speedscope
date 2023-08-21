@@ -1,5 +1,5 @@
 import { h, ComponentChildren } from 'preact'
-import { useCallback } from 'preact/hooks'
+import { useCallback, useState } from 'preact/hooks'
 import { StyleSheet, css } from 'aphrodite'
 import { Duration, Sizes } from './style'
 import { useTheme, withTheme } from './themes/theme'
@@ -11,10 +11,16 @@ import {
   typedKeys,
   setRendererImpl,
   RenderTarget,
+  defaultFilter,
   getActiveFilters,
   setActiveFilters,
+  getTaskPriorityName,
   DiffEntry,
+  TaskEntry,
   WorkConsts,
+  isSlaTask,
+  isSevTask,
+  isLaunchBlockingTask,
 } from '../import/worktrack'
 
 const maxDiffsToCollect = 1000;
@@ -33,7 +39,7 @@ export function FilterView(props: FilterViewProps) {
     props.reloadLastProfile()
   }, [props, filters])
   const resetFilter = useCallback(() => {
-    setActiveFilters({})
+    setActiveFilters(defaultFilter)
     props.close()
     props.reloadLastProfile()
   }, [props])
@@ -116,12 +122,13 @@ export function FilterView(props: FilterViewProps) {
         <input type="text" value={filters.weightCap} onInput={inputToField('weightCap')} />
       </div>
       <div className={css(style.filterViewRow)}>
-        <span>Task:</span>
-        <input type="checkbox" checked={filters.taskSev} onInput={checkboxToField('taskSev')} />
-        <span>SEV</span>
-        <input type="checkbox" checked={filters.taskSla} onInput={checkboxToField('taskSla')} />
-        <span>SLA</span>
-        <span>Priority:</span>
+        <span>Task Priority:</span>
+        <input
+          type="checkbox"
+          checked={filters.taskPriAny}
+          onInput={checkboxToField('taskPriAny')}
+        />
+        <span>Any</span>
         <input
           type="checkbox"
           checked={filters.taskPriUbn}
@@ -152,6 +159,21 @@ export function FilterView(props: FilterViewProps) {
           onInput={checkboxToField('taskPriWish')}
         />
         <span>Wish</span>
+        <input
+          type="checkbox"
+          checked={filters.taskPriNone}
+          onInput={checkboxToField('taskPriNone')}
+        />
+        <span>None</span>
+      </div>
+      <div className={css(style.filterViewRow)}>
+        <span>Task Category:</span>
+        <input type="checkbox" checked={filters.taskSev} onInput={checkboxToField('taskSev')} />
+        <span>SEV</span>
+        <input type="checkbox" checked={filters.taskSla} onInput={checkboxToField('taskSla')} />
+        <span>SLA</span>
+        <input type="checkbox" checked={filters.taskLaunchBlocking} onInput={checkboxToField('taskLaunchBlocking')} />
+        <span>Launch Blocking</span>
       </div>
       <div className={css(style.filterViewRow)}>
         <button onClick={resetFilter}>Reset</button>
@@ -179,23 +201,15 @@ export function EntryView(props: EntryViewProps): h.JSX.Element {
   rows.push(<p>Diffs [{diffs.length}{hasMoreDiffs ? '+' : ''}]:</p>)
   list = []
   for (const diff of diffs) {
-    const dateClosed = toMonthDate(new Date(1000 * diff.dateClosed))
     list.push(
-      <li>
-        <NewTabOnlyLink href={`https://www.internalfb.com/diff/D${diff.id}`}>
-          {'D' + diff.id}
-        </NewTabOnlyLink>
-        {' ' + diff.author} {dateClosed} {diff.title}
-        [{diff.fileCount}/{diff.extensions.join(',')}]
-        [{diff.reviewers.sort().join(',')}]
-      </li>,
+      <DiffLine diff={diff} />
     )
     if (!detailsView && list.length >= WorkConsts.maxDiffPeek) {
-      list.push(<li>...</li>)
+      list.push(<p>...</p>)
       break
     }
   }
-  rows.push(<ul className={css(style.bulletlist)}>{list}</ul>)
+  rows.push(<div style={{ marginLeft: 10 }}>{list}</div>)
   rows.push(<p>Stats:</p>)
   list = []
   for (const statName of typedKeys(fileEntry.stats).sort()) {
@@ -229,10 +243,91 @@ export function EntryView(props: EntryViewProps): h.JSX.Element {
       {detailsView ? <NewTabOnlyLink href={getLink(fileEntry)}>
         {getPath(fileEntry)}
       </NewTabOnlyLink> : undefined}
-      <p>{getManagers(fileEntry.managers)}</p>
+      <div style={{ width: 3000 }}>Team: {getManagers(fileEntry.managers)}</div>
       {rows}
     </div>
   )
+}
+
+interface TaskLineProps {
+  task: TaskEntry
+}
+
+function TaskLine(props: TaskLineProps): h.JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  const { task } = props;
+  const category: string[] = [];
+  if (isLaunchBlockingTask(task)) {
+    category.push('LB');
+  }
+  if (isSevTask(task)) {
+    category.push('SEV');
+  }
+  if (isSlaTask(task)) {
+    category.push('SLA');
+  }
+  if (category.length) {
+    category.push(' ');
+  }
+  return (
+    <div style={{ width: 3000 }}>
+      <a style={{ marginRight: 5 }} onClick={() => setExpanded(!expanded)}>[{(expanded) ? '|' : '+'}]</a>
+      <span>
+        <NewTabOnlyLink href={`https://www.internalfb.com/tasks/?t=${task.id}`}>
+          {'T' + task.id}
+        </NewTabOnlyLink>
+        <a style={{ marginLeft: 5, marginRight: 5 }} onClick={() => setExpanded(!expanded)}>
+          {category.join(' ')}
+          [{getTaskPriorityName(task.priority)}]
+          {task.title}
+        </a>
+      </span>
+      {!expanded ? null : (
+        <div style={{marginLeft: 10}}>
+          Tags: {[...task.tags].sort().join(' ')}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface DiffLineProps {
+  diff: DiffEntry
+}
+
+function DiffLine(props: DiffLineProps): h.JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  const { diff } = props;
+  const dateClosed = toMonthDate(new Date(1000 * diff.dateClosed))
+  const expandable = diff.tasks.length;
+  const taskList: h.JSX.Element[] = [];
+  if (expanded) {
+    for (const task of diff.tasks) {
+      taskList.push(<TaskLine task={task} />);
+    }
+  }
+  return (
+    <div style={{ width: 3000 }}>
+      <span>
+        <a style={{ marginRight: 5 }} onClick={() => setExpanded(!expanded)}>[{expandable ? (expanded ? '|' : '+') : '-'}]</a>
+        <NewTabOnlyLink href={`https://www.internalfb.com/diff/D${diff.id}`}>
+          {'D' + diff.id}
+        </NewTabOnlyLink>
+        <a style={{ marginLeft: 5, marginRight: 5 }} onClick={() => setExpanded(!expanded)}>
+          {dateClosed}
+        </a>
+        <NewTabOnlyLink href={'https://www.internalfb.com/intern/bunny/?q=' + encodeURIComponent('cdiffs ' + diff.author)}>
+          {diff.author}
+        </NewTabOnlyLink>
+        <a style={{ marginLeft: 5, marginRight: 5 }} onClick={() => setExpanded(!expanded)}>
+          {diff.title}
+          [{diff.fileCount}/{diff.extensions.join(',')}]
+          [{diff.reviewers.sort().join(',')}]
+        </a>
+      </span>
+      {(expanded && expandable) ? (<div style={{ marginLeft: 10 }}>{taskList}</div>) : null}
+    </div>
+  );
 }
 
 function getDiffsForTarget(fileEntry: FileEntry, target: RenderTarget): DiffEntry[] {

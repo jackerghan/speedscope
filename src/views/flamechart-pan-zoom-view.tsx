@@ -720,13 +720,13 @@ export class FlamechartPanZoomView extends Component<FlamechartPanZoomViewProps,
     if (!this.container) return
     const {width, height} = this.container.getBoundingClientRect()
 
-    if (ev.key === '=' || ev.key === '+') {
-      this.zoom(new Vec2(width / 2, height / 2), 0.5)
-      ev.preventDefault()
-    } else if (ev.key === '-' || ev.key === '_') {
-      this.zoom(new Vec2(width / 2, height / 2), 2)
-      ev.preventDefault()
-    }
+    // if (ev.key === '=' || ev.key === '+') {
+    //   this.zoom(new Vec2(width / 2, height / 2), 0.5)
+    //   ev.preventDefault()
+    // } else if (ev.key === '-' || ev.key === '_') {
+    //   this.zoom(new Vec2(width / 2, height / 2), 2)
+    //   ev.preventDefault()
+    // }
 
     if (ev.ctrlKey || ev.shiftKey || ev.metaKey) return
 
