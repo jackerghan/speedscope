@@ -268,6 +268,7 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
   const authorFilter = buildTextFilter(filters.authorsInclude, filters.authorsExclude)
   const reviewerFilter = buildTextFilter(filters.reviewersInclude, filters.reviewersExclude)
   const titleFilter = buildTextFilter(filters.titleInclude, filters.titleExclude)
+  const taskTitleFilter = buildTextFilter(filters.taskTitleInclude, filters.taskTitleExclude)
   const tagFilter = buildTextFilter(filters.tagsInclude, filters.tagsExclude)
   const priFilter = buildPriorityFilter(filters);
   const dateMin = dateFilterToEpoch(filters.diffDateMin, 0)
@@ -317,7 +318,9 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
       let sevDiff = false;
       let slaDiff = false;
       let launchBlockingDiff = false;
+      const taskTitles: string[] = [];
       for (const task of diff.tasks) {
+        taskTitles.push(task.title);
         sevDiff ||= isSevTask(task);
         slaDiff ||= isSlaTask(task);
         launchBlockingDiff ||= isLaunchBlockingTask(task);
@@ -325,6 +328,9 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
         for (const tag of task.tags) {
           diffTags.add(tag)
         }
+      }
+      if (!matchArrayToTextFilter(taskTitles, taskTitleFilter)) {
+        continue
       }
       if (!matchSetToTextFilter(diffTags, tagFilter)) {
         continue
@@ -568,6 +574,8 @@ export type Filters = {
   titleExclude?: string
   diffDateMin?: string
   diffDateMax?: string
+  taskTitleInclude?: string
+  taskTitleExclude?: string
   taskSev?: boolean
   taskSla?: boolean
   taskLaunchBlocking?: boolean

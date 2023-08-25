@@ -109,6 +109,13 @@ export function FilterView(props: FilterViewProps) {
         <input type="text" value={filters.diffDateMax} onInput={inputToField('diffDateMax')} />
       </div>
       <div className={css(style.filterViewRow)}>
+        <span>Task Title:</span>
+        <span>Include:</span>
+        <input type="text" value={filters.taskTitleInclude} onInput={inputToField('taskTitleInclude')} />
+        <span>Exclude:</span>
+        <input type="text" value={filters.taskTitleExclude} onInput={inputToField('taskTitleExclude')} />
+      </div>
+      <div className={css(style.filterViewRow)}>
         <span>Task Tags:</span>
         <span>Include:</span>
         <input type="text" value={filters.tagsInclude} onInput={inputToField('tagsInclude')} />
@@ -188,28 +195,11 @@ interface EntryViewProps {
   target: RenderTarget
 }
 
-export function EntryView(props: EntryViewProps): h.JSX.Element {
+function StatsDatasView(props: EntryViewProps): h.JSX.Element {
   const style = getStyle(useTheme())
   const { fileEntry, target } = props
-  const detailsView = target === 'details'
   const rows: h.JSX.Element[] = []
   let list: h.JSX.Element[] = []
-  const diffs = getDiffsForTarget(fileEntry, target)
-  const hasMoreDiffs = detailsView ?
-    (diffs.length >= maxDiffsToCollect) :
-    (fileEntry.children.size && (diffs.length >= WorkConsts.maxDiffPeek));
-  rows.push(<p>Diffs [{diffs.length}{hasMoreDiffs ? '+' : ''}]:</p>)
-  list = []
-  for (const diff of diffs) {
-    list.push(
-      <DiffLine diff={diff} />
-    )
-    if (!detailsView && list.length >= WorkConsts.maxDiffPeek) {
-      list.push(<p>...</p>)
-      break
-    }
-  }
-  rows.push(<div style={{ marginLeft: 10 }}>{list}</div>)
   rows.push(<p>Stats:</p>)
   list = []
   for (const statName of typedKeys(fileEntry.stats).sort()) {
@@ -238,13 +228,84 @@ export function EntryView(props: EntryViewProps): h.JSX.Element {
     }
     rows.push(<ul className={css(style.bulletlist)}>{list}</ul>)
   }
+  return <div>{rows}</div>;
+}
+
+function DiffsView(props: EntryViewProps): h.JSX.Element {
+  const { fileEntry, target } = props
+  const [expanded, setExpanded] = useState(true)
+  const rows: h.JSX.Element[] = []
+  let list: h.JSX.Element[] = []
+  const [diffs, hasMoreDiffs] = getDiffsForTarget(fileEntry, target)
+  rows.push(<p><a onClick={() => setExpanded(!expanded)}>
+    [{(expanded) ? 'v' : '+'}] Diffs [{diffs.length}{hasMoreDiffs ? '+' : ''}]:
+  </a></p>)
+  if (expanded) {
+    list = []
+    for (const diff of diffs) {
+      list.push(
+        <DiffLine diff={diff} />
+      )
+      if (!isDetailsView(target) && list.length >= WorkConsts.maxDiffPeek) {
+        list.push(<p>...</p>)
+        break
+      }
+    }
+    rows.push(<div style={{ marginLeft: 10 }}>{list}</div>)
+  }
+  if (isDetailsView(target)) {
+    rows.push(<TasksView diffs={diffs} hasMore={hasMoreDiffs} />);
+  }
+  return <div>{rows}</div>;
+}
+
+interface TasksViewProps {
+  diffs: DiffEntry[]
+  hasMore: boolean
+}
+
+function TasksView(props: TasksViewProps): h.JSX.Element {
+  const [expanded, setExpanded] = useState(false)
+  const { diffs, hasMore } = props
+  const rows: h.JSX.Element[] = []
+  let list: h.JSX.Element[] = []
+  const tasks = new Set<TaskEntry>();
+  for (const diff of diffs) {
+    for (const task of diff.tasks) {
+      tasks.add(task);
+    }
+  }
+  const sortedTasks = [...tasks].sort((a, b) => { return b.id - a.id });
+  rows.push(<p><a onClick={() => setExpanded(!expanded)}>
+    [{(expanded) ? 'v' : '+'}] Tasks [{tasks.size}{hasMore ? '+' : ''}]:
+  </a></p>)
+  if (expanded) {
+    list = []
+    for (const task of sortedTasks) {
+      list.push(
+        <TaskLine task={task} />
+      )
+    }
+    if (hasMore) {
+      list.push(<p>...</p>)
+    }
+    rows.push(<div style={{ marginLeft: 10 }}>{list}</div>)
+  }
+  return <div>{rows}</div>;
+}
+
+
+export function EntryView(props: EntryViewProps): h.JSX.Element {
+  const style = getStyle(useTheme())
+  const { fileEntry, target } = props
   return (
     <div className={css(style.container)}>
-      {detailsView ? <NewTabOnlyLink href={getLink(fileEntry)}>
+      {isDetailsView(target) ? <NewTabOnlyLink href={getLink(fileEntry)}>
         {getPath(fileEntry)}
       </NewTabOnlyLink> : undefined}
-      <div style={{ width: 3000 }}>Team: {getManagers(fileEntry.managers)}</div>
-      {rows}
+      <div style={{ whiteSpace: 'nowrap' }}>Team: {getManagers(fileEntry.managers)}</div>
+      <DiffsView {...props} />
+      <StatsDatasView {...props} />
     </div>
   )
 }
@@ -270,8 +331,8 @@ function TaskLine(props: TaskLineProps): h.JSX.Element {
     category.push(' ');
   }
   return (
-    <div style={{ width: 3000 }}>
-      <a style={{ marginRight: 5 }} onClick={() => setExpanded(!expanded)}>[{(expanded) ? '|' : '+'}]</a>
+    <div style={{ whiteSpace: 'nowrap' }}>
+      <a style={{ marginRight: 5 }} onClick={() => setExpanded(!expanded)}>[{(expanded) ? 'v' : '+'}]</a>
       <span>
         <NewTabOnlyLink href={`https://www.internalfb.com/tasks/?t=${task.id}`}>
           {'T' + task.id}
@@ -283,7 +344,7 @@ function TaskLine(props: TaskLineProps): h.JSX.Element {
         </a>
       </span>
       {!expanded ? null : (
-        <div style={{marginLeft: 10}}>
+        <div style={{ marginLeft: 10 }}>
           Tags: {[...task.tags].sort().join(' ')}
         </div>
       )}
@@ -307,9 +368,9 @@ function DiffLine(props: DiffLineProps): h.JSX.Element {
     }
   }
   return (
-    <div style={{ width: 3000 }}>
+    <div style={{ whiteSpace: 'nowrap' }}>
       <span>
-        <a style={{ marginRight: 5 }} onClick={() => setExpanded(!expanded)}>[{expandable ? (expanded ? '|' : '+') : '-'}]</a>
+        <a style={{ marginRight: 5 }} onClick={() => setExpanded(!expanded)}>[{expandable ? (expanded ? 'v' : '+') : '-'}]</a>
         <NewTabOnlyLink href={`https://www.internalfb.com/diff/D${diff.id}`}>
           {'D' + diff.id}
         </NewTabOnlyLink>
@@ -330,13 +391,15 @@ function DiffLine(props: DiffLineProps): h.JSX.Element {
   );
 }
 
-function getDiffsForTarget(fileEntry: FileEntry, target: RenderTarget): DiffEntry[] {
-  if (target !== 'details') {
-    return fileEntry.diffs
+function getDiffsForTarget(fileEntry: FileEntry, target: RenderTarget): [DiffEntry[], boolean] {
+  if (!isDetailsView(target)) {
+    const diffs = fileEntry.diffs;
+    const hasMoreDiffs = !!fileEntry.children.size && (diffs.length >= WorkConsts.maxDiffPeek);
+    return [diffs, hasMoreDiffs]
   }
   const collected = [...collectDiffs(fileEntry, maxDiffsToCollect, new Set())]
   collected.sort((a, b) => b.dateClosed - a.dateClosed)
-  return collected
+  return [collected, collected.length >= maxDiffsToCollect]
 }
 
 function collectDiffs(fileEntry: FileEntry, max: number, diffs: Set<DiffEntry>) {
@@ -380,6 +443,10 @@ function preventClickNavigation(ev: MouseEvent) {
 
 function renderEntry(fileEntry: FileEntry, target: RenderTarget): h.JSX.Element {
   return <EntryView fileEntry={fileEntry} target={target} />
+}
+
+function isDetailsView(target: RenderTarget) {
+  return target === 'details';
 }
 
 function toMonthDate(date: Date) {
