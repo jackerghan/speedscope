@@ -43,6 +43,10 @@ export type TaskEntry = {
   priority: number
   taskType: number
   tags: Set<string>
+  is_sla: boolean
+  sla_start: number
+  sla_completion: number
+  sla_deadline: number
 }
 
 type ParsedFileEntry = {
@@ -174,12 +178,20 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
     const priority = Number(fields[fieldCount++])
     const taskType = Number(fields[fieldCount++])
     const tags: Set<string> = new Set(fields[fieldCount++].split(':::'))
+    const is_sla: boolean = (fields.length <= fieldCount) ? false : !!Number(fields[fieldCount++])
+    const sla_start = (fields.length <= fieldCount) ? 0 : Number(fields[fieldCount++])
+    const sla_completion = (fields.length <= fieldCount) ? 0 : Number(fields[fieldCount++])
+    const sla_deadline = (fields.length <= fieldCount) ? 0 : Number(fields[fieldCount++])
     const task: TaskEntry = {
       id: taskId,
       title,
       priority,
       taskType,
       tags,
+      is_sla,
+      sla_start,
+      sla_completion,
+      sla_deadline,
     }
     workContent.tasks.set(taskId, task)
   }
@@ -777,7 +789,7 @@ function matchPriorityFilter(taskPris: Set<number>, priFilter: Set<number>) {
 }
 
 export function isSlaTask(task: TaskEntry): boolean {
-  return false;
+  return task.is_sla;
 }
 
 export function isSevTask(task: TaskEntry): boolean {

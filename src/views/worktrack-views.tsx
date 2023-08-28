@@ -330,6 +330,15 @@ function TaskLine(props: TaskLineProps): h.JSX.Element {
   if (category.length) {
     category.push(' ');
   }
+  let slaInfo: h.JSX.Element | null = null;
+  if (isSlaTask(task) && (task.sla_start || task.sla_completion || task.sla_deadline)) {
+    slaInfo = (<p>
+      {'SLA: '}
+      {(task.sla_start ? 'Start: ' + toDateString(task.sla_start) + ' ' : '')}
+      {(task.sla_completion ? 'Complete: ' + toDateString(task.sla_completion) + ' ' : '')}
+      {(task.sla_deadline ? 'Deadline: ' + toDateString(task.sla_deadline) + ' ' : '')}
+    </p>);
+  }
   return (
     <div style={{ whiteSpace: 'nowrap' }}>
       <a style={{ marginRight: 5 }} onClick={() => setExpanded(!expanded)}>[{(expanded) ? 'v' : '+'}]</a>
@@ -345,7 +354,8 @@ function TaskLine(props: TaskLineProps): h.JSX.Element {
       </span>
       {!expanded ? null : (
         <div style={{ marginLeft: 10 }}>
-          Tags: {[...task.tags].sort().join(' ')}
+          <p>Tags: {[...task.tags].sort().join(' ')}</p>
+          {slaInfo}
         </div>
       )}
     </div>
@@ -451,6 +461,11 @@ function isDetailsView(target: RenderTarget) {
 
 function toMonthDate(date: Date) {
   return date.toISOString().substring(5, 10)
+}
+
+function toDateString(epoch: number) {
+  const iso = new Date(1000 * epoch).toISOString();
+  return iso.substring(0, 10);
 }
 
 setRendererImpl(renderEntry)
