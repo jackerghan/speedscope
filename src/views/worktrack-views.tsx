@@ -244,7 +244,7 @@ function DiffsView(props: EntryViewProps): h.JSX.Element {
     list = []
     for (const diff of diffs) {
       list.push(
-        <DiffLine diff={diff} />
+        <DiffLine diff={diff} key={diff.id} />
       )
       if (!isDetailsView(target) && list.length >= WorkConsts.maxDiffPeek) {
         list.push(<p>...</p>)
@@ -283,7 +283,7 @@ function TasksView(props: TasksViewProps): h.JSX.Element {
     list = []
     for (const task of sortedTasks) {
       list.push(
-        <TaskLine task={task} />
+        <TaskLine task={task} key={task.id}/>
       )
     }
     if (hasMore) {
@@ -374,7 +374,7 @@ function DiffLine(props: DiffLineProps): h.JSX.Element {
   const taskList: h.JSX.Element[] = [];
   if (expanded) {
     for (const task of diff.tasks) {
-      taskList.push(<TaskLine task={task} />);
+      taskList.push(<TaskLine task={task} key={task.id}/>);
     }
   }
   return (
