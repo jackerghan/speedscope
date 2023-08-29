@@ -11,7 +11,7 @@ import {ActiveProfileState} from '../app-state/active-profile-state'
 import {LeftHeavyFlamechartView, ChronoFlamechartView} from './flamechart-view-container'
 import {CanvasContext} from '../gl/canvas-context'
 import {Toolbar} from './toolbar'
-import {importJavaScriptSourceMapSymbolRemapper} from '../lib/js-source-map'
+// import {importJavaScriptSourceMapSymbolRemapper} from '../lib/js-source-map'
 import {Theme, withTheme} from './themes/theme'
 import {ViewMode} from '../lib/view-mode'
 import {canUseXHR} from '../app-state'
@@ -19,15 +19,16 @@ import {ProfileGroupState} from '../app-state/profile-group'
 import {HashParams} from '../lib/hash-params'
 import {StatelessComponent} from '../lib/preact-helpers'
 
-const importModule = import('../import')
+// const importModule = import('../import')
+import * as importModule from '../import'
 
 // Force eager loading of a few code-split modules.
 //
 // We put them all in one place so we can directly control the relative priority
 // of these.
-importModule.then(() => {})
-import('../lib/demangle-cpp').then(() => {})
-import('source-map').then(() => {})
+// importModule.then(() => {})
+// import('../lib/demangle-cpp').then(() => {})
+// import('source-map').then(() => {})
 
 async function importProfilesFromText(
   fileName: string,
@@ -58,7 +59,7 @@ async function importFromFileSystemDirectoryEntry(entry: FileSystemDirectoryEntr
 }
 
 declare function require(x: string): any
-const exampleProfileURL = require('../../sample/profiles/stackcollapse/perf-vertx-stacks-01-collapsed-all.txt')
+// const exampleProfileURL = require('../../sample/profiles/stackcollapse/perf-vertx-stacks-01-collapsed-all.txt')
 
 interface GLCanvasProps {
   canvasContext: CanvasContext | null
@@ -267,14 +268,14 @@ export class Application extends StatelessComponent<ApplicationProps> {
           symbolRemapper = emscriptenSymbolRemapper
         }
 
-        const jsSourceMapRemapper = await importJavaScriptSourceMapSymbolRemapper(
-          fileContents,
-          file.name,
-        )
-        if (!symbolRemapper && jsSourceMapRemapper) {
-          console.log('Importing as JavaScript source map')
-          symbolRemapper = jsSourceMapRemapper
-        }
+        // const jsSourceMapRemapper = await importJavaScriptSourceMapSymbolRemapper(
+        //   fileContents,
+        //   file.name,
+        // )
+        // if (!symbolRemapper && jsSourceMapRemapper) {
+        //   console.log('Importing as JavaScript source map')
+        //   symbolRemapper = jsSourceMapRemapper
+        // }
 
         if (symbolRemapper != null) {
           return {
@@ -294,14 +295,6 @@ export class Application extends StatelessComponent<ApplicationProps> {
       }
 
       return null
-    })
-  }
-
-  loadExample = () => {
-    this.loadProfile(async () => {
-      const filename = 'perf-vertx-stacks-01-collapsed-all.txt'
-      const data = await fetch(exampleProfileURL).then(resp => resp.text())
-      return await importProfilesFromText(filename, data)
     })
   }
 
@@ -488,11 +481,7 @@ export class Application extends StatelessComponent<ApplicationProps> {
           {canUseXHR ? (
             <p className={css(style.landingP)}>
               Drag and drop a profile file onto this window to get started, click the big blue
-              button below to browse for a profile to explore, or{' '}
-              <a tabIndex={0} className={css(style.link)} onClick={this.loadExample}>
-                click here
-              </a>{' '}
-              to load an example profile.
+              button below to browse for a profile to explore.
             </p>
           ) : (
             <p className={css(style.landingP)}>

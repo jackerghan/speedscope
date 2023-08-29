@@ -2,7 +2,7 @@ import {lastOf, KeyedSet} from './utils'
 import {ValueFormatter, RawValueFormatter} from './value-formatters'
 import {FileFormat} from './file-format-spec'
 import {h} from 'preact'
-const demangleCppModule = import('./demangle-cpp')
+// const demangleCppModule = import('./demangle-cpp')
 
 export interface FrameData {
   renderTooltip: () => h.JSX.Element
@@ -415,18 +415,18 @@ export class Profile {
 
   // Demangle symbols for readability
   async demangle() {
-    let demangleCpp: ((name: string) => string) | null = null
+    // let demangleCpp: ((name: string) => string) | null = null
 
-    for (let frame of this.frames) {
-      // This function converts a mangled C++ name such as "__ZNK7Support6ColorFeqERKS0_"
-      // into a human-readable symbol (in this case "Support::ColorF::==(Support::ColorF&)")
-      if (frame.name.startsWith('__Z')) {
-        if (!demangleCpp) {
-          demangleCpp = (await demangleCppModule).demangleCpp
-        }
-        frame.name = demangleCpp(frame.name)
-      }
-    }
+    // for (let frame of this.frames) {
+    //   // This function converts a mangled C++ name such as "__ZNK7Support6ColorFeqERKS0_"
+    //   // into a human-readable symbol (in this case "Support::ColorF::==(Support::ColorF&)")
+    //   if (frame.name.startsWith('__Z')) {
+    //     if (!demangleCpp) {
+    //       demangleCpp = (await demangleCppModule).demangleCpp
+    //     }
+    //     frame.name = demangleCpp(frame.name)
+    //   }
+    // }
   }
 
   remapSymbols(callback: SymbolRemapper) {
