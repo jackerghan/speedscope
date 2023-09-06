@@ -575,6 +575,9 @@ function getRepoUrlPart(repo: string, path: string) {
       return fbsourcePrefix + '/fbobjc';
       break;
     case 'igsrv':
+      if (path.includes('fbcode/instagram-server')) {
+        return fbsourcePrefix;
+      }
       return 'instagram/[history]';
       break;
     case 'fbsource-other':
@@ -839,4 +842,20 @@ export function getTaskPriorityName(priority: number) {
     default:
       return 'unknown';
   }
+}
+
+export function compareTaskPriority(a: number, b: number) {
+  if (a == b) {
+    return 0;
+  }
+  if (a == 0) {
+    return -1;
+  }
+  if (b == 0) {
+    return 1;
+  }
+  if (a > b) {
+    return -1;
+  }
+  return 1;
 }

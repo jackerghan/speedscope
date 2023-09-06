@@ -15,6 +15,7 @@ import {
   getActiveFilters,
   setActiveFilters,
   getTaskPriorityName,
+  compareTaskPriority,
   DiffEntry,
   TaskEntry,
   WorkConsts,
@@ -314,22 +315,27 @@ interface TaskLineProps {
   task: TaskEntry
 }
 
+function mergeTaskCategory(category: Set<string>, task:TaskEntry) {
+  if (isLaunchBlockingTask(task)) {
+    category.add('LB');
+  }
+  if (isSevTask(task)) {
+    category.add('SEV');
+  }
+  if (isSlaTask(task)) {
+    category.add('SLA');
+  }
+}
+
+function taskCategoryToString(category: Set<string>) {
+  return [...category.keys()].sort().join(' ');
+}
+
 function TaskLine(props: TaskLineProps): h.JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const { task } = props;
-  const category: string[] = [];
-  if (isLaunchBlockingTask(task)) {
-    category.push('LB');
-  }
-  if (isSevTask(task)) {
-    category.push('SEV');
-  }
-  if (isSlaTask(task)) {
-    category.push('SLA');
-  }
-  if (category.length) {
-    category.push(' ');
-  }
+  const category: Set<string> = new Set();
+  mergeTaskCategory(category, task);
   let slaInfo: h.JSX.Element | null = null;
   if (isSlaTask(task) && (task.sla_start || task.sla_completion || task.sla_deadline)) {
     slaInfo = (<p>
@@ -339,6 +345,7 @@ function TaskLine(props: TaskLineProps): h.JSX.Element {
       {(task.sla_deadline ? 'Deadline: ' + toDateString(task.sla_deadline) + ' ' : '')}
     </p>);
   }
+  const categoryString = taskCategoryToString(category);
   return (
     <div style={{ whiteSpace: 'nowrap' }}>
       <a style={{ marginRight: 5 }} onClick={() => setExpanded(!expanded)}>[{(expanded) ? 'v' : '+'}]</a>
@@ -347,8 +354,8 @@ function TaskLine(props: TaskLineProps): h.JSX.Element {
           {'T' + task.id}
         </NewTabOnlyLink>
         <a style={{ marginLeft: 5, marginRight: 5 }} onClick={() => setExpanded(!expanded)}>
-          {category.join(' ')}
-          [{getTaskPriorityName(task.priority)}]
+          {categoryString ? categoryString + ' ' : ''}
+          [{getTaskPriorityName(task.priority)}]{' '}
           {task.title}
         </a>
       </span>
@@ -372,6 +379,15 @@ function DiffLine(props: DiffLineProps): h.JSX.Element {
   const dateClosed = toMonthDate(new Date(1000 * diff.dateClosed))
   const expandable = diff.tasks.length;
   const taskList: h.JSX.Element[] = [];
+  const category = new Set<string>();
+  let maxPriority = 0;
+  for (const task of diff.tasks) {
+    mergeTaskCategory(category, task);
+    if (compareTaskPriority(maxPriority, task.priority) < 0) {
+      maxPriority = task.priority;
+    }
+  }
+  const categoryString = taskCategoryToString(category);
   if (expanded) {
     for (const task of diff.tasks) {
       taskList.push(<TaskLine task={task} key={task.id}/>);
@@ -386,6 +402,8 @@ function DiffLine(props: DiffLineProps): h.JSX.Element {
         </NewTabOnlyLink>
         <a style={{ marginLeft: 5, marginRight: 5 }} onClick={() => setExpanded(!expanded)}>
           {dateClosed}
+          {categoryString ? ' ' + categoryString : ''}
+          {maxPriority ? ' [' + getTaskPriorityName(maxPriority) + ']': ''}
         </a>
         <NewTabOnlyLink href={'https://www.internalfb.com/intern/bunny/?q=' + encodeURIComponent('cdiffs ' + diff.author)}>
           {diff.author}
