@@ -527,19 +527,39 @@ export function getPath(fileEntry: FileEntry): string {
 }
 
 export function getLink(fileEntry: FileEntry): string {
-  let pathParts = getPath(fileEntry).split('/');
+  const path = getPath(fileEntry);
+  const pathParts = path.split('/');
   // Drop the Root and repo from the path.
   const pathForUrl = pathParts.slice(2).join('/');
   const repo = pathParts[1];
-  let repoForUrl = getRepoUrlPart(repo);
+  if (repo === 'other') {
+    const gkMatch = path.match(/\/gatekeepers.*\/([^/]+).gatekeeper\.[^/]+$/);
+    if (gkMatch) {
+      return 'https://www.internalfb.com/intern/gatekeeper/history/?projects[0]=' + gkMatch[1];
+    }
+    const svMatch = path.match(/\/sitevars.*\/([^/]+).sitevar\.[^/]+$/);
+    if (svMatch) {
+      return 'https://www.internalfb.com/intern/sv/changelog/' + svMatch[1];
+    }
+  }
+  let repoForUrl = getRepoUrlPart(repo, path);
   if (repoForUrl === '') {
     return 'about:blank';
   }
   return ['https://www.internalfb.com/code', repoForUrl, pathForUrl].join('/');
 }
 
-function getRepoUrlPart(repo: string) {
+function getRepoUrlPart(repo: string, path: string) {
   const fbsourcePrefix = 'fbsource/[history]';
+  if (repo === 'other') {
+    let configMatch = path.match(/\.cconf$/);
+    if (!configMatch) {
+      configMatch = path.match(/\.materialized_JSON$/);
+    }
+    if (configMatch) {
+      return 'configerator/[history]';
+    }
+  }
   switch (repo) {
     case 'www':
     case 'www-other':
@@ -555,6 +575,8 @@ function getRepoUrlPart(repo: string) {
       return fbsourcePrefix + '/fbobjc';
       break;
     case 'igsrv':
+      return 'instagram/[history]';
+      break;
     case 'fbsource-other':
       return fbsourcePrefix;
       break;
