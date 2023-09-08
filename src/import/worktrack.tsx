@@ -34,6 +34,7 @@ export type DiffEntry = {
   extensions: string[]
   taskIds: number[]
   reviewers: string[]
+  managersRaw: string
   tasks: TaskEntry[]
 }
 
@@ -137,6 +138,9 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
       .map((x: string) => Number(x))
       .filter((y: number) => y != 0)
     const reviewers = (fields.length <= fieldCount) ? [] : fields[fieldCount++].split('/')
+    let managersRaw = (fields.length <= fieldCount) ? '' : fields[fieldCount++]
+    // Drop the diff author from the 'managers'.
+    managersRaw = managersRaw.split('/').slice(0, -1).join('/');
     const diff = {
       id: diffId,
       fbid: diffFbid,
@@ -154,6 +158,7 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
       extensions,
       taskIds,
       reviewers,
+      managersRaw,
       tasks: [],
     }
     workContent.diffs.set(diffFbid, diff)
@@ -248,7 +253,7 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
     }
     const file: ParsedFileEntry = {
       managers,
-      managersRaw: '/' + managersRaw + '/',
+      managersRaw,
       pathParts,
       pathRaw: '/' + path + '/',
       diffs,
@@ -298,9 +303,25 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     diffs: [],
   }
   for (const file of parsedData.files) {
-    if (!matchTextFilter(file.managersRaw, managerFilter)) {
+    // Determine manager chain from asset/file or diffs.
+    let managersRaw = file.managersRaw;
+    if (!managersRaw) {
+      const chainCount = new Map<string, number>();
+      for (const diff of file.diffs) {
+        if (diff.managersRaw) {
+          const chainKey = diff.managersRaw;
+          chainCount.set(chainKey, (chainCount.get(chainKey) ?? 0) + 1);
+        }
+      }
+      if (chainCount.size) {
+        const sortedChains = [...chainCount.entries()].sort((a,b) => (b[1] - a[1]));
+        managersRaw = sortedChains[0][0];
+      }
+    }
+    if (!matchTextFilter('/' + managersRaw + '/', managerFilter)) {
       continue
     }
+    const managers = managersRaw.split('/');
     if (!matchTextFilter(file.pathRaw, pathFilter)) {
       continue
     }
@@ -380,7 +401,7 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     totalWeight += stats.weight
     let parent = root
     accumulateStats(root, stats)
-    addManagers(root.managers, file.managers)
+    addManagers(root.managers, managers)
     let leafEntry: FileEntry | null = null
     for (let i = 0; i < file.pathParts.length; i++) {
       const leaf = i == file.pathParts.length - 1
@@ -405,7 +426,7 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
         accumulateStats(fileEntry, stats)
       }
       // Make sure managers get added to a new file entry or parent directory.
-      addManagers(fileEntry.managers, file.managers)
+      addManagers(fileEntry.managers, managers)
       parent = fileEntry
     }
     // Bubble up diffs - but keep it to a few for each level.
