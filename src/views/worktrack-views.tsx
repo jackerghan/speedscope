@@ -198,7 +198,7 @@ interface EntryViewProps {
 
 function StatsDatasView(props: EntryViewProps): h.JSX.Element {
   const style = getStyle(useTheme())
-  const { fileEntry, target } = props
+  const { fileEntry } = props
   const rows: h.JSX.Element[] = []
   let list: h.JSX.Element[] = []
   rows.push(<p>Stats:</p>)
@@ -304,7 +304,8 @@ export function EntryView(props: EntryViewProps): h.JSX.Element {
       {isDetailsView(target) ? <NewTabOnlyLink href={getLink(fileEntry)}>
         {getPath(fileEntry)}
       </NewTabOnlyLink> : undefined}
-      <div style={{ whiteSpace: 'nowrap' }}>Team: {getManagers(fileEntry.managers)}</div>
+      <div style={{ whiteSpace: 'nowrap' }}>Team[By Path]: {getManagers(fileEntry.managersByPath)}</div>
+      <div style={{ whiteSpace: 'nowrap' }}>Team[By Diff]: {getManagers(fileEntry.managersByDiff)}</div>
       <DiffsView {...props} />
       <StatsDatasView {...props} />
     </div>

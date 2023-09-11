@@ -106,14 +106,16 @@ export function FlamechartDetailView(props: FlamechartDetailViewProps) {
   const { frame } = selectedNode
 
   const getHeight = () => {
-    if (resizeDivRef.current) {
+    if (resizeDivRef.current != null) {
+      // @ts-ignore Element access through ref
       return resizeDivRef.current.clientHeight;
     }
     return Sizes.DETAIL_VIEW_HEIGHT;
   }
 
   const setHeight = (height: number) => {
-    if (resizeDivRef.current) {
+    if (resizeDivRef.current != null) {
+      // @ts-ignore Element access through ref
       resizeDivRef.current.style.setProperty('height', height + 'px', 'important');
       _lastDetailHeight = height;
     }
