@@ -5,9 +5,11 @@ import { Duration, Sizes } from './style'
 import { useTheme, withTheme } from './themes/theme'
 import {
   FileEntry,
+  ParsedFileEntry,
   getManagers,
   getLink,
   getPath,
+  getPathFromParsedFile,
   typedKeys,
   setRendererImpl,
   RenderTarget,
@@ -284,7 +286,7 @@ function TasksView(props: TasksViewProps): h.JSX.Element {
     list = []
     for (const task of sortedTasks) {
       list.push(
-        <TaskLine task={task} key={task.id}/>
+        <TaskLine task={task} key={task.id} />
       )
     }
     if (hasMore) {
@@ -301,7 +303,7 @@ export function EntryView(props: EntryViewProps): h.JSX.Element {
   const { fileEntry, target } = props
   return (
     <div className={css(style.container)}>
-      {isDetailsView(target) ? <NewTabOnlyLink href={getLink(fileEntry)}>
+      {isDetailsView(target) ? <NewTabOnlyLink href={getLink(getPath(fileEntry))}>
         {getPath(fileEntry)}
       </NewTabOnlyLink> : undefined}
       <div style={{ whiteSpace: 'nowrap' }}>Team[By Path]: {getManagers(fileEntry.managersByPath)}</div>
@@ -316,7 +318,7 @@ interface TaskLineProps {
   task: TaskEntry
 }
 
-function mergeTaskCategory(category: Set<string>, task:TaskEntry) {
+function mergeTaskCategory(category: Set<string>, task: TaskEntry) {
   if (isLaunchBlockingTask(task)) {
     category.add('LB');
   }
@@ -370,6 +372,34 @@ function TaskLine(props: TaskLineProps): h.JSX.Element {
   );
 }
 
+interface FileLineProps {
+  file: ParsedFileEntry
+}
+
+function FileLine(props: FileLineProps): h.JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  const { file } = props;
+  const path = getPathFromParsedFile(file);
+  const displayPath = path.replace(/^Root\//, '')
+  const isExpandable = file.file != null;
+  return (
+    <div style={{ whiteSpace: 'nowrap' }}>
+      <span style={{ marginRight: 5 }}>
+        {isExpandable ? (<a onClick={() => setExpanded(!expanded)}>
+          {'[' + (expanded ? 'v' : '>') + '] ' + displayPath}</a>) : ('[ ] ')}
+        {!isExpandable ? (
+          <NewTabOnlyLink href={getLink(path)}>
+            {displayPath}
+          </NewTabOnlyLink>) : null}
+        {isExpandable && expanded ? (
+          <div style={{ marginLeft: 10 }}>
+            <EntryView fileEntry={file.file!} target='details' />
+          </div>) : null}
+      </span>
+    </div>
+  );
+}
+
 interface DiffLineProps {
   diff: DiffEntry
 }
@@ -378,8 +408,8 @@ function DiffLine(props: DiffLineProps): h.JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const { diff } = props;
   const dateClosed = toMonthDate(new Date(1000 * diff.dateClosed))
-  const expandable = diff.tasks.length;
   const taskList: h.JSX.Element[] = [];
+  const fileList: h.JSX.Element[] = [];
   const category = new Set<string>();
   let maxPriority = 0;
   for (const task of diff.tasks) {
@@ -391,20 +421,23 @@ function DiffLine(props: DiffLineProps): h.JSX.Element {
   const categoryString = taskCategoryToString(category);
   if (expanded) {
     for (const task of diff.tasks) {
-      taskList.push(<TaskLine task={task} key={task.id}/>);
+      taskList.push(<TaskLine task={task} key={task.id} />);
+    }
+    for (const file of diff.parsedFiles) {
+      fileList.push(<FileLine file={file} key={file.pathRaw} />);
     }
   }
   return (
     <div style={{ whiteSpace: 'nowrap' }}>
       <span>
-        <a style={{ marginRight: 5 }} onClick={() => setExpanded(!expanded)}>[{expandable ? (expanded ? 'v' : '+') : '-'}]</a>
+        <a style={{ marginRight: 5 }} onClick={() => setExpanded(!expanded)}>[{diff.tasks.length ? (expanded ? 'v' : '+') : '-'}]</a>
         <NewTabOnlyLink href={`https://www.internalfb.com/diff/D${diff.id}`}>
           {'D' + diff.id}
         </NewTabOnlyLink>
         <a style={{ marginLeft: 5, marginRight: 5 }} onClick={() => setExpanded(!expanded)}>
           {dateClosed}
           {categoryString ? ' ' + categoryString : ''}
-          {maxPriority ? ' [' + getTaskPriorityName(maxPriority) + ']': ''}
+          {maxPriority ? ' [' + getTaskPriorityName(maxPriority) + ']' : ''}
         </a>
         <NewTabOnlyLink href={'https://www.internalfb.com/intern/bunny/?q=' + encodeURIComponent('cdiffs ' + diff.author)}>
           {diff.author}
@@ -415,7 +448,7 @@ function DiffLine(props: DiffLineProps): h.JSX.Element {
           [{diff.reviewers.sort().join(',')}]
         </a>
       </span>
-      {(expanded && expandable) ? (<div style={{ marginLeft: 10 }}>{taskList}</div>) : null}
+      {(expanded) ? (<div style={{ marginLeft: 10 }}>{taskList}{fileList}</div>) : null}
     </div>
   );
 }

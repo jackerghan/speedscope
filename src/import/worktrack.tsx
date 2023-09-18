@@ -4,6 +4,7 @@ import { TextFileContent } from './utils'
 import { h } from 'preact'
 
 export const maxDiffPeek = 5
+export const maxDiffFiles = 100
 
 export enum WorkConsts {
   maxDiffPeek = 5,
@@ -36,6 +37,7 @@ export type DiffEntry = {
   reviewers: string[]
   managersRaw: string
   tasks: TaskEntry[]
+  parsedFiles: ParsedFileEntry[]
 }
 
 export type TaskEntry = {
@@ -50,13 +52,14 @@ export type TaskEntry = {
   sla_deadline: number
 }
 
-type ParsedFileEntry = {
+export type ParsedFileEntry = {
   managersRaw: string
   pathRaw: string
   pathParts: string[]
   diffs: DiffEntry[]
   stats: Stats
   datas: Datas
+  file: FileEntry | null
 }
 
 type FileWorkContent = {
@@ -79,6 +82,7 @@ export type FileEntry = {
   children: Map<string, FileEntry>
   parent: FileEntry | null
   diffs: DiffEntry[]
+  parsedFile: ParsedFileEntry | null
 }
 
 type BuildContext = {
@@ -160,6 +164,7 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
       reviewers,
       managersRaw,
       tasks: [],
+      parsedFiles: [],
     }
     workContent.diffs.set(diffFbid, diff)
   }
@@ -234,7 +239,6 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
     const editCount = Number(fields[fieldCount++])
     const ploc = Number(fields[fieldCount++])
     if (!diffs.length) {
-      // Warn if no diffs even if no filters and ...
       console.warn(`${path} has no diffs with details ${diffFbids}`)
       continue
     }
@@ -256,11 +260,16 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
       diffs,
       stats,
       datas,
+      file: null
+    }
+    for (const diff of diffs) {
+      diff.parsedFiles.push(file);
     }
     workContent.files.push(file)
   }
   // Stitch together diffs and tasks.
   for (const diff of workContent.diffs.values()) {
+    diff.parsedFiles.sort((a, b) => nonLocaleCompare(a.pathRaw, b.pathRaw));
     for (const taskId of diff.taskIds) {
       const task = workContent.tasks.get(taskId)
       if (!task) {
@@ -299,8 +308,10 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     parent: null,
     children: new Map(),
     diffs: [],
+    parsedFile: null
   }
   for (const file of parsedData.files) {
+    file.file = null
     if (!matchTextFilter(file.pathRaw, pathFilter)) {
       continue
     }
@@ -314,11 +325,11 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
       }
     }
     if (chainCount.size) {
-      const sortedChains = [...chainCount.entries()].sort((a,b) => (b[1] - a[1]));
+      const sortedChains = [...chainCount.entries()].sort((a, b) => (b[1] - a[1]));
       diffManagersRaw = sortedChains[0][0];
     }
     if (!matchTextFilter('/' + diffManagersRaw + '/', managerFilter) &&
-        !matchTextFilter('/' + file.managersRaw + '/', managerFilter)) {
+      !matchTextFilter('/' + file.managersRaw + '/', managerFilter)) {
       continue
     }
     // Shedding zuck etc. above VP, e.g. rish/prashant/nam/lars etc.
@@ -418,10 +429,13 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
           children: new Map(),
           parent,
           diffs: leaf ? diffs : [],
+          parsedFile: null
         }
         parent.children.set(part, fileEntry)
         if (leaf) {
           leafEntry = fileEntry
+          leafEntry.parsedFile = file
+          file.file = leafEntry
         }
       } else {
         accumulateStats(fileEntry, stats)
@@ -542,6 +556,9 @@ export function getManagers(managers: string[][]): string {
 }
 
 export function getPath(fileEntry: FileEntry): string {
+  if (fileEntry.parsedFile) {
+    return getPathFromParsedFile(fileEntry.parsedFile);
+  }
   const parts = []
   for (let current: FileEntry | null = fileEntry; current; current = current.parent) {
     parts.push(current.name)
@@ -549,8 +566,11 @@ export function getPath(fileEntry: FileEntry): string {
   return parts.reverse().join('/')
 }
 
-export function getLink(fileEntry: FileEntry): string {
-  const path = getPath(fileEntry);
+export function getPathFromParsedFile(file: ParsedFileEntry): string {
+  return 'Root' + file.pathRaw.slice(0, -1);
+}
+
+export function getLink(path: string): string {
   const pathParts = path.split('/');
   // Drop the Root and repo from the path.
   const pathForUrl = pathParts.slice(2).join('/');
@@ -658,7 +678,7 @@ export function getActiveFilters(): Filters {
 }
 
 export function setActiveFilters(filters: Filters) {
-  activeFilters = {...filters}
+  activeFilters = { ...filters }
 }
 
 type TextFilter = {
