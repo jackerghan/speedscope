@@ -4,7 +4,6 @@ import { TextFileContent } from './utils'
 import { h } from 'preact'
 
 export const maxDiffPeek = 5
-export const maxDiffFiles = 100
 
 export enum WorkConsts {
   maxDiffPeek = 5,
