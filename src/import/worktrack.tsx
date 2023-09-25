@@ -285,8 +285,9 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
 export function importWorkTrack(contents: TextFileContent, fileName: string): ProfileGroup {
   const parsedData = parseWorkContent(contents)
   const filters = getActiveFilters()
-  const managerFilter = buildTextFilter(filters.managersInclude, filters.managersExclude)
   const pathFilter = buildTextFilter(filters.pathInclude, filters.pathExclude)
+  const diffManagerFilter = buildTextFilter(filters.diffManagersInclude, filters.diffManagersExclude)
+  const caManagerFilter = buildTextFilter(filters.caManagersInclude, filters.caManagersExclude)
   const authorFilter = buildTextFilter(filters.authorsInclude, filters.authorsExclude)
   const reviewerFilter = buildTextFilter(filters.reviewersInclude, filters.reviewersExclude)
   const titleFilter = buildTextFilter(filters.titleInclude, filters.titleExclude)
@@ -327,8 +328,10 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
       const sortedChains = [...chainCount.entries()].sort((a, b) => (b[1] - a[1]));
       diffManagersRaw = sortedChains[0][0];
     }
-    if (!matchTextFilter('/' + diffManagersRaw + '/', managerFilter) &&
-      !matchTextFilter('/' + file.managersRaw + '/', managerFilter)) {
+    if (!matchTextFilter('/' + diffManagersRaw + '/', diffManagerFilter)) {
+      continue;
+    }
+    if (!matchTextFilter('/' + file.managersRaw + '/', caManagerFilter)) {
       continue
     }
     // Shedding zuck etc. above VP, e.g. rish/prashant/nam/lars etc.
@@ -639,8 +642,10 @@ function nonLocaleCompare(a: string, b: string): number {
 }
 
 export type Filters = {
-  managersInclude?: string
-  managersExclude?: string
+  diffManagersInclude?: string
+  diffManagersExclude?: string
+  caManagersInclude?: string
+  caManagersExclude?: string
   pathInclude?: string
   pathExclude?: string
   tagsInclude?: string

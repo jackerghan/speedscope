@@ -62,26 +62,26 @@ export function FilterView(props: FilterViewProps) {
   return (
     <div className={css(style.filterView)}>
       <div className={css(style.filterViewRow)}>
-        <span>Manager:</span>
-        <span>Include:</span>
-        <input
-          type="text"
-          value={filters.managersInclude}
-          onInput={inputToField('managersInclude')}
-        />
-        <span>Exclude:</span>
-        <input
-          type="text"
-          value={filters.managersExclude}
-          onInput={inputToField('managersExclude')}
-        />
-      </div>
-      <div className={css(style.filterViewRow)}>
         <span>Path:</span>
         <span>Include:</span>
         <input type="text" value={filters.pathInclude} onInput={inputToField('pathInclude')} />
         <span>Exclude:</span>
         <input type="text" value={filters.pathExclude} onInput={inputToField('pathExclude')} />
+      </div>
+      <div className={css(style.filterViewRow)}>
+        <span>Diff Manager:</span>
+        <span>Include:</span>
+        <input
+          type="text"
+          value={filters.diffManagersInclude}
+          onInput={inputToField('diffManagersInclude')}
+        />
+        <span>Exclude:</span>
+        <input
+          type="text"
+          value={filters.diffManagersExclude}
+          onInput={inputToField('diffManagersExclude')}
+        />
       </div>
       <div className={css(style.filterViewRow)}>
         <span>Diff Title:</span>
@@ -130,6 +130,21 @@ export function FilterView(props: FilterViewProps) {
         <input type="text" value={filters.weightStat} onInput={inputToField('weightStat')} />
         <span>Weight cap:</span>
         <input type="text" value={filters.weightCap} onInput={inputToField('weightCap')} />
+      </div>
+      <div className={css(style.filterViewRow)}>
+        <span>Code Asset Manager:</span>
+        <span>Include:</span>
+        <input
+          type="text"
+          value={filters.caManagersInclude}
+          onInput={inputToField('caManagersInclude')}
+        />
+        <span>Exclude:</span>
+        <input
+          type="text"
+          value={filters.caManagersExclude}
+          onInput={inputToField('caManagersExclude')}
+        />
       </div>
       <div className={css(style.filterViewRow)}>
         <span>Task Priority:</span>
@@ -306,8 +321,8 @@ export function EntryView(props: EntryViewProps): h.JSX.Element {
       {isDetailsView(target) ? <NewTabOnlyLink href={getLink(getPath(fileEntry))}>
         {getPath(fileEntry)}
       </NewTabOnlyLink> : undefined}
-      <div style={{ whiteSpace: 'nowrap' }}>Team[By Path]: {getManagers(fileEntry.managersByPath)}</div>
       <div style={{ whiteSpace: 'nowrap' }}>Team[By Diff]: {getManagers(fileEntry.managersByDiff)}</div>
+      <div style={{ whiteSpace: 'nowrap' }}>Team[By CodeAsset]: {getManagers(fileEntry.managersByPath)}</div>
       <DiffsView {...props} />
       <StatsDatasView {...props} />
     </div>
