@@ -1,5 +1,5 @@
 import { h, ComponentChildren } from 'preact'
-import { useCallback, useState } from 'preact/hooks'
+import { useCallback, useMemo, useState } from 'preact/hooks'
 import { StyleSheet, css } from 'aphrodite'
 import { Duration, Sizes } from './style'
 import { useTheme, withTheme } from './themes/theme'
@@ -26,7 +26,7 @@ import {
   isLaunchBlockingTask,
 } from '../import/worktrack'
 
-const maxDiffsToCollect = 1000;
+const maxDiffsToRender = 1000;
 
 export interface FilterViewProps {
   reloadLastProfile(): void
@@ -252,15 +252,29 @@ function StatsDatasView(props: EntryViewProps): h.JSX.Element {
 function DiffsView(props: EntryViewProps): h.JSX.Element {
   const { fileEntry, target } = props
   const [expanded, setExpanded] = useState(true)
+  const [startIndex, setStartIndex] = useState(0)
   const rows: h.JSX.Element[] = []
   let list: h.JSX.Element[] = []
-  const [diffs, hasMoreDiffs] = getDiffsForTarget(fileEntry, target)
+  const [diffs, hasMoreDiffs] = useMemo(() => getDiffsForTarget(fileEntry, target), [fileEntry, target]);
+  if (startIndex > diffs.length) {
+    setStartIndex(0);
+  }
+  const renderDiffs = useMemo(() => diffs.slice(startIndex, startIndex + maxDiffsToRender), [diffs, startIndex]);
+  const endIndex = startIndex + renderDiffs.length;
+  const lastPage = Math.floor(endIndex / maxDiffsToRender) * maxDiffsToRender;
+  const showPaging = renderDiffs.length != diffs.length;
   rows.push(<p><a onClick={() => setExpanded(!expanded)}>
-    [{(expanded) ? 'v' : '+'}] Diffs [{diffs.length}{hasMoreDiffs ? '+' : ''}]:
-  </a></p>)
+    [{(expanded) ? 'v' : '+'}] Diffs [{diffs.length}{hasMoreDiffs ? '+' : ''}]:{' '}</a>
+    {(showPaging) ?
+      <span style={{'user-select': 'none'}}>
+        <a onClick={()=>{setStartIndex(Math.max(0, startIndex - maxDiffsToRender))}}>{'< '}</a>
+        Showing {startIndex ? startIndex : '0000'}-{endIndex}
+        <a onClick={()=>{setStartIndex(Math.min(lastPage , startIndex + maxDiffsToRender))}}>{' >'}</a>
+      </span> : null}
+  </p>)
   if (expanded) {
     list = []
-    for (const diff of diffs) {
+    for (const diff of renderDiffs) {
       list.push(
         <DiffLine diff={diff} key={diff.id} />
       )
@@ -272,19 +286,18 @@ function DiffsView(props: EntryViewProps): h.JSX.Element {
     rows.push(<div style={{ marginLeft: 10 }}>{list}</div>)
   }
   if (isDetailsView(target)) {
-    rows.push(<TasksView diffs={diffs} hasMore={hasMoreDiffs} />);
+    rows.push(<TasksView diffs={renderDiffs} />);
   }
   return <div>{rows}</div>;
 }
 
 interface TasksViewProps {
   diffs: DiffEntry[]
-  hasMore: boolean
 }
 
 function TasksView(props: TasksViewProps): h.JSX.Element {
   const [expanded, setExpanded] = useState(false)
-  const { diffs, hasMore } = props
+  const { diffs } = props
   const rows: h.JSX.Element[] = []
   let list: h.JSX.Element[] = []
   const tasks = new Set<TaskEntry>();
@@ -295,7 +308,7 @@ function TasksView(props: TasksViewProps): h.JSX.Element {
   }
   const sortedTasks = [...tasks].sort((a, b) => { return b.id - a.id });
   rows.push(<p><a onClick={() => setExpanded(!expanded)}>
-    [{(expanded) ? 'v' : '+'}] Tasks [{tasks.size}{hasMore ? '+' : ''}]:
+    [{(expanded) ? 'v' : '+'}] Tasks (for diffs shown above) [{tasks.size}]:
   </a></p>)
   if (expanded) {
     list = []
@@ -303,9 +316,6 @@ function TasksView(props: TasksViewProps): h.JSX.Element {
       list.push(
         <TaskLine task={task} key={task.id} />
       )
-    }
-    if (hasMore) {
-      list.push(<p>...</p>)
     }
     rows.push(<div style={{ marginLeft: 10 }}>{list}</div>)
   }
@@ -474,25 +484,19 @@ function getDiffsForTarget(fileEntry: FileEntry, target: RenderTarget): [DiffEnt
     const hasMoreDiffs = !!fileEntry.children.size && (diffs.length >= WorkConsts.maxDiffPeek);
     return [diffs, hasMoreDiffs]
   }
-  const collected = [...collectDiffs(fileEntry, maxDiffsToCollect, new Set())]
+  const collected = [...collectDiffs(fileEntry, new Set())]
   collected.sort((a, b) => b.dateClosed - a.dateClosed)
-  return [collected, collected.length >= maxDiffsToCollect]
+  return [collected, false]
 }
 
-function collectDiffs(fileEntry: FileEntry, max: number, diffs: Set<DiffEntry>) {
+function collectDiffs(fileEntry: FileEntry, diffs: Set<DiffEntry>) {
   if (!fileEntry.children.size) {
     for (const diff of fileEntry.diffs) {
       diffs.add(diff)
-      if (diffs.size >= max) {
-        break
-      }
     }
   } else {
     for (const child of fileEntry.children.values()) {
-      collectDiffs(child, max, diffs)
-      if (diffs.size >= max) {
-        break
-      }
+      collectDiffs(child, diffs)
     }
   }
   return diffs

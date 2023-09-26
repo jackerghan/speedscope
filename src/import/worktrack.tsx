@@ -230,6 +230,8 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
         diffs.push(diff)
       }
     }
+    // Sort diffs descending in time order.
+    diffs.sort((a, b) => b.dateClosed - a.dateClosed);
     const pathParts = path.split('/')
     const logicalComplexity = Number(fields[fieldCount++])
     const codeCoveragePercent = Number(fields[fieldCount++])
@@ -449,17 +451,21 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     }
     // Bubble up diffs - but keep it to a few for each level.
     if (leafEntry) {
-      for (let nextParent = leafEntry.parent; nextParent != null; nextParent = nextParent.parent) {
-        if (nextParent.diffs.length >= WorkConsts.maxDiffPeek + 1) {
-          break
-        }
-        for (const diff of leafEntry.diffs) {
-          if (!nextParent.diffs.includes(diff)) {
-            nextParent.diffs.push(diff)
-            if (nextParent.diffs.length >= WorkConsts.maxDiffPeek + 1) {
-              break
-            }
+      for (const diff of leafEntry.diffs) {
+        let inserted = false;
+        for (let nextParent = leafEntry.parent; nextParent != null; nextParent = nextParent.parent) {
+          const insertedInThisParent = insertDiff(nextParent.diffs, WorkConsts.maxDiffPeek + 1, diff);
+          inserted ||= insertedInThisParent;
+          // If we could not insert in this parent, its parent's will also
+          // already have more recent diffs.
+          if (!insertedInThisParent) {
+            break;
           }
+        }
+        // Diffs are sorted in descending time order. If we could not bubble up
+        // this diff, we won't be able to bubble up the others after this.
+        if (!inserted) {
+          break;
         }
       }
     }
@@ -482,6 +488,38 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
   }
 }
 
+function insertDiff(diffs: DiffEntry[], maxDiffs: number, diff: DiffEntry): boolean {
+  // We are keeping diffs sorted in descending order by date closed.
+  let targetIndex = Math.min(diffs.length, maxDiffs);
+  // Find the location, bubbling up from the end.
+  for (; targetIndex > 0; targetIndex--) {
+    const prevDiff = diffs[targetIndex - 1];
+    if (prevDiff.dateClosed == diff.dateClosed) {
+      if (diffs.includes(diff)) {
+        // Don't allow duplicates. Note multiple diffs may have same exact dateClosed.
+        return false;
+      }
+    }
+    // Check against the previous element - if it is more recent, we are not
+    // going past it.
+    if (prevDiff.dateClosed >= diff.dateClosed) {
+      break;
+    }
+  }
+  // Are we going to insert?
+  if (targetIndex >= maxDiffs) {
+    return false;
+  }
+  // Just append if we are inserting at end.
+  if (diffs.length <= targetIndex) {
+    diffs.push(diff);
+  } else {
+    // Splice it in.
+    diffs.splice(targetIndex, 0, diff);
+  }
+  return true;
+}
+
 export function typedKeys<T extends Object>(obj: T): Array<keyof T> {
   return Object.keys(obj) as Array<keyof T>
 }
@@ -502,7 +540,6 @@ function renderTooltip(fileEntry: FileEntry): h.JSX.Element {
 }
 
 function addToProfile(context: BuildContext, fileEntry: FileEntry): void {
-  fileEntry.diffs.sort((a, b) => b.dateClosed - a.dateClosed)
   const frameInfo: FrameInfo = {
     key: fileEntry.key,
     name: fileEntry.name,
