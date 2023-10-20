@@ -86,9 +86,10 @@ export type FileEntry = {
 }
 
 type FilteredFile = {
-  file: ParsedFileEntry
+  file: ParsedFileEntry | null
   diffs: DiffEntry[]
   stats: Stats
+  datas: Datas
   diffManagersRaw: string
 }
 
@@ -319,7 +320,7 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
   const priFilter = buildPriorityFilter(filters);
   const dateMin = dateFilterToEpoch(filters.diffDateMin, 0)
   const dateMax = dateFilterToEpoch(filters.diffDateMax, 24 * 60 * 60)
-
+  const fileEvalFilter = buildEvalFilter('stats', 'datas', filters.fileEvalFilter);
   // Filter the files to the desired set.
   for (const diff of parsedData.diffs.values()) {
     diff.filteredFileCount = 0;
@@ -412,7 +413,6 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
         }
       }
       diffs.push(diff)
-      diff.filteredFileCount++;
     }
     if (!diffs.length) {
       continue
@@ -420,9 +420,29 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     filteredFiles.push({
       file: file,
       stats: {... file.stats, fileUpdates: diffs.length},
+      datas: {... file.datas},
       diffs: diffs,
       diffManagersRaw,
     })
+  }
+  // Make the second pass of filtering and stat/data calculations.
+  for (const filteredFile of filteredFiles.values()) {
+    const {stats, datas, diffs} = filteredFile;
+    const authors = new Set<string>();
+    for (const diff of diffs) {
+      authors.add(diff.author);
+    }
+    datas.authors = authors.size;
+    if (fileEvalFilter) {
+      if (!fileEvalFilter(stats, datas)) {
+        filteredFile.file = null;
+        continue;
+      }
+    }
+    // We're keeping this file. Record it in the diffs.
+    for (const diff of diffs) {
+      diff.filteredFileCount++;
+    }
   }
   // Create the file entry tree and propagate stats.
   let totalWeight = 0
@@ -440,11 +460,12 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     parsedFile: null
   }
   for (const filteredFile of filteredFiles.values()) {
-    const {file, stats, diffs, diffManagersRaw} = filteredFile;
+    const {file, stats, datas, diffs, diffManagersRaw} = filteredFile;
+    if (!file) {
+      continue;
+    }
     let fileUpdatesWeighed = 0;
-    const authors = new Set<string>();
     for (const diff of diffs) {
-      authors.add(diff.author);
       fileUpdatesWeighed += (1 / diff.filteredFileCount);
     }
     stats.fileUpdatesWeighed = fileUpdatesWeighed;
@@ -471,7 +492,7 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
           managersByDiff: [],
           managersByPath: [],
           stats: { ...stats },
-          datas: leaf ? { ...file.datas, authors: authors.size} : {},
+          datas: leaf ? datas : {},
           children: new Map(),
           parent,
           diffs: leaf ? diffs : [],
@@ -753,6 +774,7 @@ export type Filters = {
   taskPriWish?: boolean
   taskPriNone?: boolean
   taskPriAny?: boolean
+  fileEvalFilter?: string
   weightStat: string
   weightCap: string
 }
@@ -805,6 +827,17 @@ function buildTextFilter(
   const [includes, includesRegex] = inputToFilterArray(includesInput)
   const [excludes, excludesRegex] = inputToFilterArray(excludesInput)
   return { excludes, excludesRegex, includes, includesRegex }
+}
+
+function buildEvalFilter(param1: string, param2: string, evalInput: string | undefined) {
+  if (!evalInput) {
+    return undefined;
+  }
+  try {
+    return new Function(param1, param2, 'return ' + evalInput);
+  } catch (err) {
+    return () => false;
+  }
 }
 
 function matchTextFilter(key: string, filters: TextFilter) {

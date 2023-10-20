@@ -201,6 +201,10 @@ export function FilterView(props: FilterViewProps) {
         <span>Launch Blocking</span>
       </div>
       <div className={css(style.filterViewRow)}>
+        <span>File stats./datas. filter:</span>
+        <input size={50} type="text" placeholder="e.g. datas.authors >= 5" value={filters.fileEvalFilter} onInput={inputToField('fileEvalFilter')} />
+      </div>
+      <div className={css(style.filterViewRow)}>
         <button onClick={resetFilter}>Reset</button>
         <button onClick={applyFilter}>Apply</button>
       </div>
