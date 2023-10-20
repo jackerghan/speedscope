@@ -516,6 +516,10 @@ function insertDiff(diffs: DiffEntry[], maxDiffs: number, diff: DiffEntry): bool
   } else {
     // Splice it in.
     diffs.splice(targetIndex, 0, diff);
+    // Pop at the end to keep the limit.
+    if (diffs.length > maxDiffs) {
+      diffs.pop();
+    }
   }
   return true;
 }
