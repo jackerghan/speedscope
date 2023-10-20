@@ -479,8 +479,10 @@ function DiffLine(props: DiffLineProps): h.JSX.Element {
         </NewTabOnlyLink>
         <a style={{ marginLeft: 5, marginRight: 5 }} onClick={() => setExpanded(!expanded)}>
           {diff.title}
-          [{diff.fileCount}/{diff.extensions.join(',')}]
-          [{diff.reviewers.sort().join(',')}]
+          {' '}[{diff.fileCount}/{diff.extensions.join(',')}]
+          {diff.acceptors.length ? (<span> [{'a:' + diff.acceptors.sort().join(',')}]</span>) : ''}
+          {' '}[{'r:' + diff.reviewers.sort().join(',')}]
+          {diff.commenters.length ? (<span> [{'c:' + diff.commenters.sort().join(',')}]</span>) : ''}
         </a>
       </span>
       {(expanded) ? (<div style={{ marginLeft: 10 }}>{taskList}{fileList}</div>) : null}

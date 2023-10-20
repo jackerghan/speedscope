@@ -34,6 +34,8 @@ export type DiffEntry = {
   extensions: string[]
   taskIds: number[]
   reviewers: string[]
+  commenters: string[]
+  acceptors: string[]
   managersRaw: string
   tasks: TaskEntry[]
   parsedFiles: ParsedFileEntry[]
@@ -153,6 +155,8 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
     let managersRaw = (fields.length <= fieldCount) ? '' : fields[fieldCount++]
     // Drop the diff author from the 'managers'.
     managersRaw = managersRaw.split('/').slice(0, -1).join('/');
+    const commenters = (fields.length <= fieldCount) ? [] : fields[fieldCount++].split('/').filter((x: string) => x)
+    const acceptors = (fields.length <= fieldCount) ? [] : fields[fieldCount++].split('/')
     const diff = {
       id: diffId,
       fbid: diffFbid,
@@ -170,6 +174,8 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
       extensions,
       taskIds,
       reviewers,
+      commenters,
+      acceptors,
       managersRaw,
       tasks: [],
       parsedFiles: [],
