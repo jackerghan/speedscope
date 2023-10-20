@@ -259,12 +259,18 @@ function DiffsView(props: EntryViewProps): h.JSX.Element {
   if (startIndex > diffs.length) {
     setStartIndex(0);
   }
+  const authors = new Set<string>();
+  for (const diff of diffs) {
+    authors.add(diff.author);
+  }
   const renderDiffs = useMemo(() => diffs.slice(startIndex, startIndex + maxDiffsToRender), [diffs, startIndex]);
   const endIndex = startIndex + renderDiffs.length;
   const lastPage = Math.floor(endIndex / maxDiffsToRender) * maxDiffsToRender;
   const showPaging = renderDiffs.length != diffs.length;
   rows.push(<p><a onClick={() => setExpanded(!expanded)}>
-    [{(expanded) ? 'v' : '+'}] Diffs [{diffs.length}{hasMoreDiffs ? '+' : ''}]:{' '}</a>
+    [{(expanded) ? 'v' : '+'}] Diffs [{diffs.length}{hasMoreDiffs ? '+' : ''}]:{' '}
+    {isDetailsView(target) ? '(' + authors.size + ' authors) ': ''}
+    </a>
     {(showPaging) ?
       <span style={{'user-select': 'none'}}>
         <a onClick={()=>{setStartIndex(Math.max(0, startIndex - maxDiffsToRender))}}>{'< '}</a>

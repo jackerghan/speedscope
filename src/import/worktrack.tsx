@@ -37,6 +37,7 @@ export type DiffEntry = {
   managersRaw: string
   tasks: TaskEntry[]
   parsedFiles: ParsedFileEntry[]
+  filteredFileCount: number
 }
 
 export type TaskEntry = {
@@ -82,6 +83,13 @@ export type FileEntry = {
   parent: FileEntry | null
   diffs: DiffEntry[]
   parsedFile: ParsedFileEntry | null
+}
+
+type FilteredFile = {
+  file: ParsedFileEntry
+  diffs: DiffEntry[]
+  stats: Stats
+  diffManagersRaw: string
 }
 
 type BuildContext = {
@@ -164,6 +172,7 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
       managersRaw,
       tasks: [],
       parsedFiles: [],
+      filteredFileCount: 0,
     }
     workContent.diffs.set(diffFbid, diff)
   }
@@ -223,11 +232,13 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
     if (!path.startsWith(repoPrefix)) {
       path = repoPrefix + path
     }
+    const authors = new Set<string>();
     const diffs: DiffEntry[] = []
     for (const diffFbid of diffFbids) {
       const diff = workContent.diffs.get(diffFbid)
       if (diff) {
         diffs.push(diff)
+        authors.add(diff.author);
       }
     }
     // Sort diffs descending in time order.
@@ -247,8 +258,10 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
       fileCount: 1,
       editCountL180: editCount,
       ploc,
+      rawFileUpdates: diffs.length
     }
     const datas: Datas = {
+      rawAuthors: authors.size,
       logicalComplexity,
       codeCoveragePercent,
       userActiveCgtDaysL180,
@@ -280,6 +293,14 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
       diff.tasks.push(task)
     }
   }
+  // Calculate weighed file update stat.
+  for (const file of workContent.files) {
+    let rawFileUpdatesWeighed = 0;
+    for (const diff of file.diffs) {
+      rawFileUpdatesWeighed += (1 / diff.parsedFiles.length);
+    }
+    file.stats["rawFileUpdatesWeighed"] = rawFileUpdatesWeighed;
+  }
   fileWithWorkContent.workContent = workContent
   return workContent
 }
@@ -298,20 +319,12 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
   const priFilter = buildPriorityFilter(filters);
   const dateMin = dateFilterToEpoch(filters.diffDateMin, 0)
   const dateMax = dateFilterToEpoch(filters.diffDateMax, 24 * 60 * 60)
-  let totalWeight = 0
-  let nextKey = 100
-  const root: FileEntry = {
-    key: nextKey++,
-    name: 'Root',
-    managersByDiff: [],
-    managersByPath: [],
-    stats: {},
-    datas: {},
-    parent: null,
-    children: new Map(),
-    diffs: [],
-    parsedFile: null
+
+  // Filter the files to the desired set.
+  for (const diff of parsedData.diffs.values()) {
+    diff.filteredFileCount = 0;
   }
+  const filteredFiles : FilteredFile[] = [];
   for (const file of parsedData.files) {
     file.file = null
     if (!matchTextFilter(file.pathRaw, pathFilter)) {
@@ -336,9 +349,6 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     if (!matchTextFilter('/' + file.managersRaw + '/', caManagerFilter)) {
       continue
     }
-    // Shedding zuck etc. above VP, e.g. rish/prashant/nam/lars etc.
-    const managersByPath = file.managersRaw.split('/').slice(3);
-    const managersByDiff = diffManagersRaw.split('/').slice(3);
     const diffs: DiffEntry[] = []
     for (const diff of file.diffs) {
       if (dateMin) {
@@ -402,19 +412,51 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
         }
       }
       diffs.push(diff)
+      diff.filteredFileCount++;
     }
     if (!diffs.length) {
       continue
     }
-    const baseWeight = filters.weightStat === 'diffs' ?
-      diffs.length :
-      toNumberOrZero(file.stats[filters.weightStat]);
-    const weight = Math.min(baseWeight, toNumberOrZero(filters.weightCap));
-    const stats = { ...file.stats, weight };
+    filteredFiles.push({
+      file: file,
+      stats: {... file.stats, fileUpdates: diffs.length},
+      diffs: diffs,
+      diffManagersRaw,
+    })
+  }
+  // Create the file entry tree and propagate stats.
+  let totalWeight = 0
+  let nextKey = 100
+  const root: FileEntry = {
+    key: nextKey++,
+    name: 'Root',
+    managersByDiff: [],
+    managersByPath: [],
+    stats: {},
+    datas: {},
+    parent: null,
+    children: new Map(),
+    diffs: [],
+    parsedFile: null
+  }
+  for (const filteredFile of filteredFiles.values()) {
+    const {file, stats, diffs, diffManagersRaw} = filteredFile;
+    let fileUpdatesWeighed = 0;
+    const authors = new Set<string>();
+    for (const diff of diffs) {
+      authors.add(diff.author);
+      fileUpdatesWeighed += (1 / diff.filteredFileCount);
+    }
+    stats.fileUpdatesWeighed = fileUpdatesWeighed;
+    const baseWeight = toNumberOrZero(stats[filters.weightStat]);
+    stats.weight = Math.min(baseWeight, toNumberOrZero(filters.weightCap));
     // Add the file and path parents to the tree.
     totalWeight += stats.weight
     let parent = root
     accumulateStats(root, stats)
+    // Shedding zuck etc. above VP, e.g. rish/prashant/nam/lars etc.
+    const managersByPath = file.managersRaw.split('/').slice(3);
+    const managersByDiff = diffManagersRaw.split('/').slice(3);
     addManagers(root.managersByDiff, managersByDiff)
     addManagers(root.managersByPath, managersByPath)
     let leafEntry: FileEntry | null = null
@@ -429,7 +471,7 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
           managersByDiff: [],
           managersByPath: [],
           stats: { ...stats },
-          datas: leaf ? { ...file.datas, diffs: diffs.length } : {},
+          datas: leaf ? { ...file.datas, authors: authors.size} : {},
           children: new Map(),
           parent,
           diffs: leaf ? diffs : [],
@@ -715,7 +757,7 @@ export type Filters = {
   weightCap: string
 }
 
-export const defaultFilter: Filters = { weightStat: 'diffs', weightCap: '10' };
+export const defaultFilter: Filters = { weightStat: 'fileUpdatesWeighed', weightCap: '1000' };
 let activeFilters: Filters = { ...defaultFilter }
 
 export function getActiveFilters(): Filters {
