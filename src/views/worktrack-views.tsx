@@ -25,6 +25,7 @@ import {
   isSevTask,
   isLaunchBlockingTask,
   TL,
+  ManualTag,
 } from '../import/worktrack'
 
 const maxDiffsToRender = 1000;
@@ -38,7 +39,11 @@ export function FilterView(props: FilterViewProps) {
   const style = getStyle(useTheme())
   const filters = getActiveFilters()
   const tlTextAreaRef = useRef<HTMLTextAreaElement>(null)
+  const tagsTextAreaRef = useRef<HTMLTextAreaElement>(null)
   const [tlsText, setTlsText] = useState(TLsToLines(filters.TLs));
+  const [tagsText, setTagsText] = useState(TagsToLines(filters.manualTags));
+  const [TLsUpdated, setTLsUpdated] = useState(false)
+  const [tagsUpdated, setTagsUpdated] = useState(false)
   const applyFilter = useCallback(() => {
     setActiveFilters(filters)
     props.close()
@@ -52,9 +57,17 @@ export function FilterView(props: FilterViewProps) {
   const setTLs = useCallback(() => {
     if (tlTextAreaRef.current) {
       filters.TLs = linesToTLs(tlTextAreaRef.current.value);
-      tlTextAreaRef.current.value = TLsToLines(filters.TLs);
+      setTlsText(TLsToLines(filters.TLs))
+      setTLsUpdated(false)
     }
   }, [tlTextAreaRef]);
+  const setTags = useCallback(() => {
+    if (tagsTextAreaRef.current) {
+      filters.manualTags = linesToTags(tagsTextAreaRef.current.value);
+      setTagsText(TagsToLines(filters.manualTags));
+      setTagsUpdated(false)
+    }
+  }, [tagsTextAreaRef]);
   const inputToField = (field: string) => {
     return (ev: Event) => {
       // @ts-ignore Make it easier to bind filters fields to input
@@ -67,7 +80,6 @@ export function FilterView(props: FilterViewProps) {
       filters[field] = (ev.target as HTMLInputElement).checked
     }
   }
-
   return (
     <div className={css(style.filterView)}>
       <div className={css(style.filterViewRow)}>
@@ -214,22 +226,6 @@ export function FilterView(props: FilterViewProps) {
         <input size={50} type="text" placeholder="e.g. datas.authors >= 5" value={filters.fileEvalFilter} onInput={inputToField('fileEvalFilter')} />
       </div>
       <div className={css(style.filterViewRow)}>
-        <textarea
-          ref={tlTextAreaRef}
-          onPaste={(e) => { e.stopPropagation() }}
-          onKeyDown={(e) => { e.stopPropagation() }}
-          rows={2}
-          cols={60}
-          value={tlsText}
-          onChange={(e) => {
-            if (e.target) {
-              setTlsText((e.target as HTMLTextAreaElement).value)
-            }
-          }}
-          placeholder="TL list: unixname,tag1/tag2/tag3..." />
-        <button onClick={setTLs}>Set TLs</button>
-      </div>
-      <div className={css(style.filterViewRow)}>
         <span>TL Tag:</span>
         <span>Include:</span>
         <input type="text" value={filters.tlTagInclude} onInput={inputToField('tlTagInclude')} />
@@ -252,6 +248,49 @@ export function FilterView(props: FilterViewProps) {
         <span>!ApprovedByTL</span>
       </div>
       <div className={css(style.filterViewRow)}>
+        <textarea
+          ref={tlTextAreaRef}
+          onPaste={(e) => { e.stopPropagation() }}
+          onKeyDown={(e) => { e.stopPropagation() }}
+          rows={2}
+          cols={60}
+          value={tlsText}
+          onChange={(e) => {
+            if (e.target) {
+              const currentText = (e.target as HTMLTextAreaElement).value
+              setTlsText(currentText)
+              setTLsUpdated(currentText !== TLsToLines(filters.TLs))
+            }
+          }}
+          placeholder="TL list: unixname,tag1/tag2/tag3..." />
+        <button disabled={!TLsUpdated} onClick={setTLs}>Set TLs</button>
+      </div>
+      <div className={css(style.filterViewRow)}>
+        <span>Manual Tags:</span>
+        <span>Include:</span>
+        <input type="text" value={filters.manualTagsInclude} onInput={inputToField('manualTagsInclude')} />
+        <span>Exclude:</span>
+        <input type="text" value={filters.manualTagsExclude} onInput={inputToField('manualTagsExclude')} />
+      </div>
+      <div className={css(style.filterViewRow)}>
+        <textarea
+          ref={tagsTextAreaRef}
+          onPaste={(e) => { e.stopPropagation() }}
+          onKeyDown={(e) => { e.stopPropagation() }}
+          rows={2}
+          cols={60}
+          value={tagsText}
+          onChange={(e) => {
+            if (e.target) {
+              const currentText = (e.target as HTMLTextAreaElement).value
+              setTagsText(currentText)
+              setTagsUpdated(currentText !== TagsToLines(filters.manualTags))
+            }
+          }}
+          placeholder="Manual tag list: type,id,tag1/tag2/tag3..." />
+        <button disabled={!tagsUpdated} onClick={setTags}>Set Tags</button>
+      </div>
+      <div className={css(style.filterViewRow)}>
         <button onClick={resetFilter}>Reset</button>
         <button onClick={applyFilter}>Apply</button>
       </div>
@@ -269,6 +308,21 @@ function TLsToLines(TLs?: TL[]): string {
 function linesToTLs(value: string): TL[] {
   const lines = value.split('\n').map(line => line.trim().split(',').filter(part => part)).filter(parts => parts.length >= 1);
   return lines.map(parts => { return { unixname: parts[0], tags: parts[1] ?? '' } });
+}
+
+function TagsToLines(tags?: ManualTag[]): string {
+  if (!tags) {
+    return '';
+  }
+  return tags.reduce((line: string, tag: ManualTag) => {
+    return line + [tag.type, tag.id, tag.tags].join(',') + '\n'
+  }, '');
+}
+
+function linesToTags(value: string): ManualTag[] {
+  const lines = value.split('\n').map(
+    line => line.trim().split(',').filter(part => part)).filter(parts => parts.length >= 3);
+  return lines.map(parts => { return { type: parts[0], id: parts[1], tags: parts[2] ?? '' } });
 }
 
 interface EntryViewProps {

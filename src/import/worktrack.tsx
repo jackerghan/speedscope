@@ -805,6 +805,12 @@ export type TL = {
   tags: string
 }
 
+export type ManualTag = {
+  type: string
+  id: string
+  tags: string[]
+}
+
 export type Filters = {
   diffManagersInclude?: string
   diffManagersExclude?: string
@@ -844,6 +850,9 @@ export type Filters = {
   notTLLanded?: boolean
   notTLCommented?: boolean
   notTLApproved?: boolean
+  manualTags?: ManualTag[]
+  manualTagsInclude?: string
+  manualTagsExclude?: string
   weightStat: string
   weightCap: string
 }
