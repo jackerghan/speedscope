@@ -39,7 +39,9 @@ export type DiffEntry = {
   managersRaw: string
   tasks: TaskEntry[]
   parsedFiles: ParsedFileEntry[]
+  // Fields below this line are updated at filtering time.
   filteredFileCount: number
+  matched: boolean
 }
 
 export type TaskEntry = {
@@ -61,6 +63,7 @@ export type ParsedFileEntry = {
   diffs: DiffEntry[]
   stats: Stats
   datas: Datas
+  // Fields below this line are updated at filtering time.
   file: FileEntry | null
 }
 
@@ -180,6 +183,7 @@ function parseWorkContent(contents: TextFileContent): FileWorkContent {
       tasks: [],
       parsedFiles: [],
       filteredFileCount: 0,
+      matched: false
     }
     workContent.diffs.set(diffFbid, diff)
   }
@@ -327,9 +331,111 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
   const dateMin = dateFilterToEpoch(filters.diffDateMin, 0)
   const dateMax = dateFilterToEpoch(filters.diffDateMax, 24 * 60 * 60)
   const fileEvalFilter = buildEvalFilter('stats', 'datas', filters.fileEvalFilter);
+  // Determine the TLs we are dealing with.
+  const TLs = new Map<string, TL>();
+  if (filters.TLs?.length) {
+    const tlTagFilter = buildTextFilter(filters.tlTagInclude, filters.tlTagExclude);
+    for (const tl of filters.TLs) {
+      if (matchTextFilter('/' + tl.tags + '/', tlTagFilter)) {
+        TLs.set(tl.unixname, tl);
+      }
+    }
+  }
   // Filter the files to the desired set.
   for (const diff of parsedData.diffs.values()) {
     diff.filteredFileCount = 0;
+    diff.matched = false;
+    if (dateMin) {
+      if (diff.dateClosed < dateMin) {
+        continue
+      }
+    }
+    if (dateMax) {
+      if (diff.dateClosed >= dateMax) {
+        continue
+      }
+    }
+    if (!matchTextFilter(diff.author, authorFilter)) {
+      continue
+    }
+    if (!matchArrayToTextFilter(diff.reviewers, reviewerFilter)) {
+      continue;
+    }
+    if (!matchTextFilter(diff.title, titleFilter)) {
+      continue
+    }
+    const diffTags = new Set<string>()
+    const diffTaskPris = new Set<number>();
+    let sevDiff = false;
+    let slaDiff = false;
+    let launchBlockingDiff = false;
+    const taskTitles: string[] = [];
+    for (const task of diff.tasks) {
+      taskTitles.push(task.title);
+      sevDiff ||= isSevTask(task);
+      slaDiff ||= isSlaTask(task);
+      launchBlockingDiff ||= isLaunchBlockingTask(task);
+      diffTaskPris.add(task.priority);
+      for (const tag of task.tags) {
+        diffTags.add(tag)
+      }
+    }
+    if (!matchArrayToTextFilter(taskTitles, taskTitleFilter)) {
+      continue
+    }
+    if (!matchSetToTextFilter(diffTags, tagFilter)) {
+      continue
+    }
+    if (!matchPriorityFilter(diffTaskPris, priFilter)) {
+      continue
+    }
+    // If a category has been specified, one category must match.
+    if (filters.taskSev || filters.taskSla || filters.taskLaunchBlocking) {
+      let matchedCategory = false;
+      if (filters.taskSev && sevDiff) {
+        matchedCategory = true;
+      }
+      if (filters.taskSla && slaDiff) {
+        matchedCategory = true
+      }
+      if (filters.taskLaunchBlocking && launchBlockingDiff) {
+        matchedCategory = true
+      }
+      if (!matchedCategory) {
+        continue;
+      }
+    }
+    if (filters.tlLanded) {
+      if (!TLs.has(diff.author)) {
+        continue;
+      }
+    }
+    if (filters.notTLLanded) {
+      if (TLs.has(diff.author)) {
+        continue;
+      }
+    }
+    if (filters.tlApproved) {
+      if ((diff.acceptors.filter(a => TLs.has(a))).length == 0) {
+        continue;
+      }
+    }
+    if (filters.notTLApproved) {
+      if ((diff.acceptors.filter(a => TLs.has(a))).length != 0) {
+        continue;
+      }
+    }
+    if (filters.tlCommented) {
+      if ((diff.commenters.filter(a => ((a !== diff.author) && TLs.has(a)))).length == 0) {
+        continue;
+      }
+    }
+    if (filters.notTLCommented) {
+      if ((diff.commenters.filter(a => TLs.has(a))).length != 0) {
+        continue;
+      }
+    }
+    diff.matched = true;
   }
   const filteredFiles : FilteredFile[] = [];
   for (const file of parsedData.files) {
@@ -358,65 +464,8 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
     }
     const diffs: DiffEntry[] = []
     for (const diff of file.diffs) {
-      if (dateMin) {
-        if (diff.dateClosed < dateMin) {
-          continue
-        }
-      }
-      if (dateMax) {
-        if (diff.dateClosed >= dateMax) {
-          continue
-        }
-      }
-      if (!matchTextFilter(diff.author, authorFilter)) {
-        continue
-      }
-      if (!matchArrayToTextFilter(diff.reviewers, reviewerFilter)) {
+      if (!diff.matched) {
         continue;
-      }
-      if (!matchTextFilter(diff.title, titleFilter)) {
-        continue
-      }
-      const diffTags = new Set<string>()
-      const diffTaskPris = new Set<number>();
-      let sevDiff = false;
-      let slaDiff = false;
-      let launchBlockingDiff = false;
-      const taskTitles: string[] = [];
-      for (const task of diff.tasks) {
-        taskTitles.push(task.title);
-        sevDiff ||= isSevTask(task);
-        slaDiff ||= isSlaTask(task);
-        launchBlockingDiff ||= isLaunchBlockingTask(task);
-        diffTaskPris.add(task.priority);
-        for (const tag of task.tags) {
-          diffTags.add(tag)
-        }
-      }
-      if (!matchArrayToTextFilter(taskTitles, taskTitleFilter)) {
-        continue
-      }
-      if (!matchSetToTextFilter(diffTags, tagFilter)) {
-        continue
-      }
-      if (!matchPriorityFilter(diffTaskPris, priFilter)) {
-        continue
-      }
-      // If a category has been specified, one category must match.
-      if (filters.taskSev || filters.taskSla || filters.taskLaunchBlocking) {
-        let matchedCategory = false;
-        if (filters.taskSev && sevDiff) {
-          matchedCategory = true;
-        }
-        if (filters.taskSla && slaDiff) {
-          matchedCategory = true
-        }
-        if (filters.taskLaunchBlocking && launchBlockingDiff) {
-          matchedCategory = true
-        }
-        if (!matchedCategory) {
-          continue;
-        }
       }
       diffs.push(diff)
     }
@@ -751,6 +800,11 @@ function nonLocaleCompare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0
 }
 
+export type TL = {
+  unixname: string
+  tags: string
+}
+
 export type Filters = {
   diffManagersInclude?: string
   diffManagersExclude?: string
@@ -781,6 +835,15 @@ export type Filters = {
   taskPriNone?: boolean
   taskPriAny?: boolean
   fileEvalFilter?: string
+  TLs?: TL[]
+  tlTagInclude?: string
+  tlTagExclude?: string
+  tlLanded?: boolean
+  tlCommented?: boolean
+  tlApproved?: boolean
+  notTLLanded?: boolean
+  notTLCommented?: boolean
+  notTLApproved?: boolean
   weightStat: string
   weightCap: string
 }

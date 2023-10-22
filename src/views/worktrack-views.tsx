@@ -1,5 +1,5 @@
 import { h, ComponentChildren } from 'preact'
-import { useCallback, useMemo, useState } from 'preact/hooks'
+import { useCallback, useMemo, useState, useRef } from 'preact/hooks'
 import { StyleSheet, css } from 'aphrodite'
 import { Duration, Sizes } from './style'
 import { useTheme, withTheme } from './themes/theme'
@@ -24,6 +24,7 @@ import {
   isSlaTask,
   isSevTask,
   isLaunchBlockingTask,
+  TL,
 } from '../import/worktrack'
 
 const maxDiffsToRender = 1000;
@@ -36,6 +37,8 @@ export interface FilterViewProps {
 export function FilterView(props: FilterViewProps) {
   const style = getStyle(useTheme())
   const filters = getActiveFilters()
+  const tlTextAreaRef = useRef<HTMLTextAreaElement>(null)
+  const [tlsText, setTlsText] = useState(TLsToLines(filters.TLs));
   const applyFilter = useCallback(() => {
     setActiveFilters(filters)
     props.close()
@@ -46,6 +49,12 @@ export function FilterView(props: FilterViewProps) {
     props.close()
     props.reloadLastProfile()
   }, [props])
+  const setTLs = useCallback(() => {
+    if (tlTextAreaRef.current) {
+      filters.TLs = linesToTLs(tlTextAreaRef.current.value);
+      tlTextAreaRef.current.value = TLsToLines(filters.TLs);
+    }
+  }, [tlTextAreaRef]);
   const inputToField = (field: string) => {
     return (ev: Event) => {
       // @ts-ignore Make it easier to bind filters fields to input
@@ -205,11 +214,61 @@ export function FilterView(props: FilterViewProps) {
         <input size={50} type="text" placeholder="e.g. datas.authors >= 5" value={filters.fileEvalFilter} onInput={inputToField('fileEvalFilter')} />
       </div>
       <div className={css(style.filterViewRow)}>
+        <textarea
+          ref={tlTextAreaRef}
+          onPaste={(e) => { e.stopPropagation() }}
+          onKeyDown={(e) => { e.stopPropagation() }}
+          rows={2}
+          cols={60}
+          value={tlsText}
+          onChange={(e) => {
+            if (e.target) {
+              setTlsText((e.target as HTMLTextAreaElement).value)
+            }
+          }}
+          placeholder="TL list: unixname,tag1/tag2/tag3..." />
+        <button onClick={setTLs}>Set TLs</button>
+      </div>
+      <div className={css(style.filterViewRow)}>
+        <span>TL Tag:</span>
+        <span>Include:</span>
+        <input type="text" value={filters.tlTagInclude} onInput={inputToField('tlTagInclude')} />
+        <span>Exclude:</span>
+        <input type="text" value={filters.tlTagExclude} onInput={inputToField('tlTagExclude')} />
+      </div>
+      <div className={css(style.filterViewRow)}>
+        <span>TL:</span>
+        <input type="checkbox" checked={filters.tlLanded} onInput={checkboxToField('tlLanded')} />
+        <span>Landed</span>
+        <input type="checkbox" checked={filters.tlCommented} onInput={checkboxToField('tlCommented')} />
+        <span>Commented</span>
+        <input type="checkbox" checked={filters.tlApproved} onInput={checkboxToField('tlApproved')} />
+        <span>Approved</span>
+        <input type="checkbox" checked={filters.notTLLanded} onInput={checkboxToField('notTLLanded')} />
+        <span>!LandedByTL</span>
+        <input type="checkbox" checked={filters.notTLCommented} onInput={checkboxToField('notTLCommented')} />
+        <span>!CommentedByTL</span>
+        <input type="checkbox" checked={filters.notTLApproved} onInput={checkboxToField('notTLApproved')} />
+        <span>!ApprovedByTL</span>
+      </div>
+      <div className={css(style.filterViewRow)}>
         <button onClick={resetFilter}>Reset</button>
         <button onClick={applyFilter}>Apply</button>
       </div>
     </div>
   )
+}
+
+function TLsToLines(TLs?: TL[]): string {
+  if (!TLs) {
+    return '';
+  }
+  return TLs.reduce((line: string, tl: TL) => { return line + [tl.unixname, tl.tags].join(',') + '\n' }, '');
+}
+
+function linesToTLs(value: string): TL[] {
+  const lines = value.split('\n').map(line => line.trim().split(',').filter(part => part)).filter(parts => parts.length >= 1);
+  return lines.map(parts => { return { unixname: parts[0], tags: parts[1] ?? '' } });
 }
 
 interface EntryViewProps {
@@ -273,13 +332,13 @@ function DiffsView(props: EntryViewProps): h.JSX.Element {
   const showPaging = renderDiffs.length != diffs.length;
   rows.push(<p><a onClick={() => setExpanded(!expanded)}>
     [{(expanded) ? 'v' : '+'}] Diffs [{diffs.length}{hasMoreDiffs ? '+' : ''}]:{' '}
-    {isDetailsView(target) ? '(' + authors.size + ' authors) ': ''}
-    </a>
+    {isDetailsView(target) ? '(' + authors.size + ' authors) ' : ''}
+  </a>
     {(showPaging) ?
-      <span style={{'user-select': 'none'}}>
-        <a onClick={()=>{setStartIndex(Math.max(0, startIndex - maxDiffsToRender))}}>{'< '}</a>
+      <span style={{ 'user-select': 'none' }}>
+        <a onClick={() => { setStartIndex(Math.max(0, startIndex - maxDiffsToRender)) }}>{'< '}</a>
         Showing {startIndex ? startIndex : '0000'}-{endIndex}
-        <a onClick={()=>{setStartIndex(Math.min(lastPage , startIndex + maxDiffsToRender))}}>{' >'}</a>
+        <a onClick={() => { setStartIndex(Math.min(lastPage, startIndex + maxDiffsToRender)) }}>{' >'}</a>
       </span> : null}
   </p>)
   if (expanded) {
