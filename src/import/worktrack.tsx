@@ -405,34 +405,40 @@ export function importWorkTrack(contents: TextFileContent, fileName: string): Pr
         continue;
       }
     }
-    if (filters.tlLanded) {
-      if (!TLs.has(diff.author)) {
-        continue;
+    if (filters.tlLanded || filters.tlApproved || filters.tlCommented ||
+      filters.notTLLanded || filters.notTLApproved || filters.notTLCommented) {
+      const landed = TLs.has(diff.author);
+      const approved = (diff.acceptors.filter(a => TLs.has(a))).length != 0;
+      const commentedOnOther = (diff.commenters.filter(a => ((a !== diff.author) && TLs.has(a)))).length != 0;
+      if (filters.tlLanded || filters.tlApproved || filters.tlCommented) {
+        let matched = false;
+        if (filters.tlLanded) {
+          matched ||= landed;
+        }
+        if (filters.tlApproved) {
+          matched ||= approved;
+        }
+        if (filters.tlCommented) {
+          matched ||= commentedOnOther;
+        }
+        if (!matched) {
+          continue;
+        }
       }
-    }
-    if (filters.notTLLanded) {
-      if (TLs.has(diff.author)) {
-        continue;
-      }
-    }
-    if (filters.tlApproved) {
-      if ((diff.acceptors.filter(a => TLs.has(a))).length == 0) {
-        continue;
-      }
-    }
-    if (filters.notTLApproved) {
-      if ((diff.acceptors.filter(a => TLs.has(a))).length != 0) {
-        continue;
-      }
-    }
-    if (filters.tlCommented) {
-      if ((diff.commenters.filter(a => ((a !== diff.author) && TLs.has(a)))).length == 0) {
-        continue;
-      }
-    }
-    if (filters.notTLCommented) {
-      if ((diff.commenters.filter(a => TLs.has(a))).length != 0) {
-        continue;
+      if (filters.notTLLanded || filters.notTLApproved || filters.notTLCommented) {
+        let matched = true;
+        if (filters.notTLLanded) {
+          matched &&= !landed;
+        }
+        if (filters.notTLApproved) {
+          matched &&= !approved;
+        }
+        if (filters.notTLCommented) {
+          matched &&= !commentedOnOther;
+        }
+        if (!matched) {
+          continue;
+        }
       }
     }
     diff.matched = true;
