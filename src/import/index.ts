@@ -24,6 +24,7 @@ import {importFromChromeHeapProfile} from './v8heapalloc'
 import {isTraceEventFormatted, importTraceEvents} from './trace-event'
 import {importFromCallgrind} from './callgrind'
 import {importFromPapyrus} from "./papyrus";
+import {importFromAndroidMethodTrace} from "./android-method";
 
 export async function importProfileGroupFromText(
   fileName: string,
@@ -86,6 +87,11 @@ async function _importProfileGroup(dataSource: ProfileDataSource): Promise<Profi
       console.log('Importing as protobuf encoded pprof file')
       return toGroup(profile)
     }
+  }
+
+  if (fileName.includes('.trace')) {
+    console.log('Importing as Android method trace');
+    return importFromAndroidMethodTrace(fileName, buffer);
   }
 
   const contents = await dataSource.readAsText()
