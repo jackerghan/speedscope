@@ -21,7 +21,33 @@ export const getFlamechartStyle = withTheme(theme =>
     panZoomView: {
       flex: 1,
     },
-
+    resizeButton: {
+      position: 'absolute',
+      width: 20,
+      height: 10,
+      top: 0,
+      left: 0,
+      right: 0,
+      margin: '0 auto',
+    },
+    detailViewContents: {
+      display: 'block',
+      height: '100%',
+      fontSize: FontSize.LABEL,
+      position: 'absolute',
+      width: '100%',
+      bottom: 0,
+      overflow: 'auto',
+    },
+    detailViewBlock: {
+      display: 'block',
+      height: Sizes.DETAIL_VIEW_HEIGHT,
+      borderTop: `${Sizes.SEPARATOR_HEIGHT}px solid ${theme.fgSecondaryColor}`,
+      position: 'absolute',
+      background: theme.bgPrimaryColor,
+      width: '100vw',
+      bottom: 0,
+    },
     detailView: {
       display: 'grid',
       height: Sizes.DETAIL_VIEW_HEIGHT,

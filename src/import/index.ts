@@ -17,6 +17,7 @@ import {importFromV8ProfLog} from './v8proflog'
 import {importFromLinuxPerf} from './linux-tools-perf'
 import {importFromHaskell} from './haskell'
 import {importFromSafari} from './safari'
+import {isWorkTrackFile, importWorkTrack} from './worktrack'
 import {ProfileDataSource, TextProfileDataSource, MaybeCompressedDataReader} from './utils'
 import {importAsPprofProfile} from './pprof'
 import {decodeBase64} from '../lib/utils'
@@ -100,6 +101,9 @@ async function _importProfileGroup(dataSource: ProfileDataSource): Promise<Profi
   if (fileName.endsWith('.speedscope.json')) {
     console.log('Importing as speedscope json file')
     return importSpeedscopeProfiles(contents.parseAsJSON())
+  } else if (isWorkTrackFile(fileName)) {
+    console.log('Importing as work track data')
+    return importWorkTrack(contents, fileName)
   } else if (/Trace-\d{8}T\d{6}/.exec(fileName)) {
     console.log('Importing as Chrome Timeline Object')
     return importFromChromeTimeline(contents.parseAsJSON().traceEvents, fileName)

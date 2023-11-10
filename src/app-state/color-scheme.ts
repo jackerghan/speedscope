@@ -11,17 +11,18 @@ export const enum ColorScheme {
   LIGHT,
 }
 
-const localStorageKey = 'speedscope-color-scheme'
+// const localStorageKey = 'speedscope-color-scheme'
 
 function getStoredPreference(): ColorScheme {
-  const storedPreference = window.localStorage && window.localStorage[localStorageKey]
-  if (storedPreference === 'DARK') {
-    return ColorScheme.DARK
-  } else if (storedPreference === 'LIGHT') {
-    return ColorScheme.LIGHT
-  } else {
-    return ColorScheme.SYSTEM
-  }
+  return ColorScheme.DARK
+  // const storedPreference = window.localStorage && window.localStorage[localStorageKey]
+  // if (storedPreference === 'DARK') {
+  //   return ColorScheme.DARK
+  // } else if (storedPreference === 'LIGHT') {
+  //   return ColorScheme.LIGHT
+  // } else {
+  //   return ColorScheme.SYSTEM
+  // }
 }
 
 function matchMediaDarkColorScheme(): MediaQueryList {
@@ -73,23 +74,23 @@ export const colorSchemeAtom = new ColorSchemeAtom(getStoredPreference(), 'color
 colorSchemeAtom.subscribe(() => {
   const value = colorSchemeAtom.get()
 
-  switch (value) {
-    case ColorScheme.DARK: {
-      window.localStorage[localStorageKey] = 'DARK'
-      break
-    }
-    case ColorScheme.LIGHT: {
-      window.localStorage[localStorageKey] = 'LIGHT'
-      break
-    }
-    case ColorScheme.SYSTEM: {
-      delete window.localStorage[localStorageKey]
-      break
-    }
-    default: {
-      const _exhaustiveCheck: never = value
-      return _exhaustiveCheck
-    }
-  }
+  // switch (value) {
+  //   case ColorScheme.DARK: {
+  //     window.localStorage[localStorageKey] = 'DARK'
+  //     break
+  //   }
+  //   case ColorScheme.LIGHT: {
+  //     window.localStorage[localStorageKey] = 'LIGHT'
+  //     break
+  //   }
+  //   case ColorScheme.SYSTEM: {
+  //     delete window.localStorage[localStorageKey]
+  //     break
+  //   }
+  //   default: {
+  //     const _exhaustiveCheck: never = value
+  //     return _exhaustiveCheck
+  //   }
+  // }
   return value
 })

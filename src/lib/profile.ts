@@ -1,7 +1,13 @@
 import {lastOf, KeyedSet} from './utils'
 import {ValueFormatter, RawValueFormatter} from './value-formatters'
 import {FileFormat} from './file-format-spec'
-const demangleCppModule = import('./demangle-cpp')
+import {h} from 'preact'
+// const demangleCppModule = import('./demangle-cpp')
+
+export interface FrameData {
+  renderTooltip: () => h.JSX.Element
+  renderDetails: () => h.JSX.Element
+}
 
 export interface FrameInfo {
   key: string | number
@@ -19,6 +25,9 @@ export interface FrameInfo {
 
   // Column in the file, 1-based.
   col?: number
+
+  // Additional data
+  data?: FrameData
 }
 
 export type SymbolRemapper = (
@@ -64,6 +73,9 @@ export class Frame extends HasWeights {
   // Column in the file
   col?: number
 
+  // Additional data
+  data?: FrameData
+
   private constructor(info: FrameInfo) {
     super()
     this.key = info.key
@@ -71,6 +83,9 @@ export class Frame extends HasWeights {
     this.file = info.file
     this.line = info.line
     this.col = info.col
+    if (info.data) {
+      this.data = info.data
+    }
   }
 
   static root = new Frame({
@@ -108,6 +123,7 @@ export interface ProfileGroup {
   name: string
   indexToView: number
   profiles: Profile[]
+  sourceFile?: File
 }
 
 export class Profile {
@@ -401,18 +417,18 @@ export class Profile {
 
   // Demangle symbols for readability
   async demangle() {
-    let demangleCpp: ((name: string) => string) | null = null
+    // let demangleCpp: ((name: string) => string) | null = null
 
-    for (let frame of this.frames) {
-      // This function converts a mangled C++ name such as "__ZNK7Support6ColorFeqERKS0_"
-      // into a human-readable symbol (in this case "Support::ColorF::==(Support::ColorF&)")
-      if (frame.name.startsWith('__Z')) {
-        if (!demangleCpp) {
-          demangleCpp = (await demangleCppModule).demangleCpp
-        }
-        frame.name = demangleCpp(frame.name)
-      }
-    }
+    // for (let frame of this.frames) {
+    //   // This function converts a mangled C++ name such as "__ZNK7Support6ColorFeqERKS0_"
+    //   // into a human-readable symbol (in this case "Support::ColorF::==(Support::ColorF&)")
+    //   if (frame.name.startsWith('__Z')) {
+    //     if (!demangleCpp) {
+    //       demangleCpp = (await demangleCppModule).demangleCpp
+    //     }
+    //     frame.name = demangleCpp(frame.name)
+    //   }
+    // }
   }
 
   remapSymbols(callback: SymbolRemapper) {

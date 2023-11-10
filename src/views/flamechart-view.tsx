@@ -95,6 +95,7 @@ export class FlamechartView extends StatelessComponent<FlamechartViewProps> {
             {frame.file}:{frame.line}
           </div>
         ) : undefined}
+        {frame.data ? frame.data.renderTooltip() : undefined}
       </Hovertip>
     )
   }

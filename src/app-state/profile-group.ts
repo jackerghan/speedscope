@@ -37,6 +37,8 @@ export type ProfileGroupState = {
   indexToView: number
 
   profiles: ProfileState[]
+
+  sourceFile?: File
 } | null
 
 export enum FlamechartID {
@@ -77,6 +79,7 @@ export class ProfileGroupAtom extends Atom<ProfileGroupState> {
         leftHeavyViewState: initialFlameChartViewState,
         sandwichViewState: {callerCallee: null},
       })),
+      sourceFile: group.sourceFile,
     })
   }
 

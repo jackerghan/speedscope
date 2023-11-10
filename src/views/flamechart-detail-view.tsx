@@ -1,11 +1,13 @@
 import {StyleDeclarationValue, css} from 'aphrodite'
 import {h, JSX} from 'preact'
+import {useEffect, useRef} from 'preact/hooks'
 import {getFlamechartStyle} from './flamechart-style'
 import {formatPercent} from '../lib/utils'
 import {Frame, CallTreeNode} from '../lib/profile'
 import {ColorChit} from './color-chit'
 import {Flamechart} from '../lib/flamechart'
 import {useTheme} from './themes/theme'
+import {Sizes} from './style'
 
 interface StatisticsTableProps {
   title: string
@@ -93,31 +95,80 @@ interface FlamechartDetailViewProps {
   selectedNode: CallTreeNode
 }
 
+let _lastDetailHeight = Sizes.DETAIL_VIEW_HEIGHT;
+
 export function FlamechartDetailView(props: FlamechartDetailViewProps) {
   const style = getFlamechartStyle(useTheme())
+  const resizeDivRef = useRef(null);
 
   const {flamechart, selectedNode} = props
   const {frame} = selectedNode
 
+  const getHeight = () => {
+    if (resizeDivRef.current != null) {
+      // @ts-ignore Element access through ref
+      return resizeDivRef.current.clientHeight;
+    }
+    return Sizes.DETAIL_VIEW_HEIGHT;
+  }
+
+  const setHeight = (height: number) => {
+    if (resizeDivRef.current != null) {
+      // @ts-ignore Element access through ref
+      resizeDivRef.current.style.setProperty('height', height + 'px', 'important');
+      _lastDetailHeight = height;
+    }
+  }
+
+  useEffect(() => {
+    setHeight(_lastDetailHeight);
+  }, []);
+
+  const handler = (mouseDownEvent: MouseEvent) => {
+    const startPosition = { x: mouseDownEvent.pageX, y: mouseDownEvent.pageY };
+    const startHeight = getHeight();
+    function onMouseMove(mouseMoveEvent: MouseEvent) {
+      const newHeight = startHeight + (startPosition.y - mouseMoveEvent.pageY);
+      setHeight(Math.max(newHeight, Sizes.DETAIL_VIEW_HEIGHT));
+    }
+    function onMouseUp() {
+      document.body.removeEventListener("mousemove", onMouseMove);
+    }
+    document.body.addEventListener("mousemove", onMouseMove);
+    document.body.addEventListener("mouseup", onMouseUp, { once: true });
+  };
+
   return (
-    <div className={css(style.detailView)}>
-      <StatisticsTable
-        title={'This Instance'}
-        cellStyle={style.thisInstanceCell}
-        grandTotal={flamechart.getTotalWeight()}
-        selectedTotal={selectedNode.getTotalWeight()}
-        selectedSelf={selectedNode.getSelfWeight()}
-        formatter={flamechart.formatValue.bind(flamechart)}
-      />
-      <StatisticsTable
-        title={'All Instances'}
-        cellStyle={style.allInstancesCell}
-        grandTotal={flamechart.getTotalWeight()}
-        selectedTotal={frame.getTotalWeight()}
-        selectedSelf={frame.getSelfWeight()}
-        formatter={flamechart.formatValue.bind(flamechart)}
-      />
-      <StackTraceView node={selectedNode} getFrameColor={props.getCSSColorForFrame} />
+    <div>
+      {(frame.data?.renderDetails) ?
+        (
+          <div className={css(style.detailViewBlock)} ref={resizeDivRef}>
+            <div className={css(style.detailViewContents)}>
+              {frame.data.renderDetails()}
+            </div>
+            <button className={css(style.resizeButton)} onMouseDown={handler}></button>
+          </div>
+        ) : (
+        <div className={css(style.detailView)}>
+          <StatisticsTable
+            title={'This Instance'}
+            cellStyle={style.thisInstanceCell}
+            grandTotal={flamechart.getTotalWeight()}
+            selectedTotal={selectedNode.getTotalWeight()}
+            selectedSelf={selectedNode.getSelfWeight()}
+            formatter={flamechart.formatValue.bind(flamechart)}
+          />
+          <StatisticsTable
+            title={'All Instances'}
+            cellStyle={style.allInstancesCell}
+            grandTotal={flamechart.getTotalWeight()}
+            selectedTotal={frame.getTotalWeight()}
+            selectedSelf={frame.getSelfWeight()}
+            formatter={flamechart.formatValue.bind(flamechart)}
+          />
+          <StackTraceView node={selectedNode} getFrameColor={props.getCSSColorForFrame} />
+        </div>
+      )}
     </div>
   )
 }
